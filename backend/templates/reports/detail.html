@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ report.query|truncatechars:50 }} - AI Business Analysis{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 py-8 px-4">
+    <div class="max-w-4xl mx-auto">
+        <!-- Navigation -->
+        <div class="flex items-center justify-between mb-6">
+            <a href="{% url 'reports_list' %}" 
+               class="text-gray-400 hover:text-white transition-colors">
+                ← Back to Reports
+            </a>
+            <a href="{% url 'report_export' report.id %}" 
+               class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2">
+                📥 Export as Markdown
+            </a>
+        </div>
+
+        <!-- Report Card -->
+        <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700/50 overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-purple-600/30 to-blue-600/30 p-6 border-b border-gray-700/50">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                            ✅ {{ report.get_status_display }}
+                        </span>
+                        <h1 class="text-2xl font-bold text-white mt-4">{{ report.query }}</h1>
+                    </div>
+                    <span class="text-gray-400 text-sm">#{{ report.id }}</span>
+                </div>
+                
+                <div class="flex gap-6 mt-4 text-sm text-gray-400">
+                    <span>📅 Created: {{ report.created_at|date:"Y-m-d H:i" }}</span>
+                    {% if report.completed_at %}
+                    <span>✅ Completed: {{ report.completed_at|date:"Y-m-d H:i" }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Report Content -->
+            <div class="p-6">
+                <div class="prose prose-invert max-w-none">
+                    {% if report.output %}
+                    <div class="text-gray-300 whitespace-pre-wrap leading-relaxed">{{ report.output }}</div>
+                    {% else %}
+                    <p class="text-gray-500 italic">No content available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions Footer -->
+        <div class="mt-6 flex justify-center gap-4">
+            <a href="http://localhost:8001" 
+               class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all">
+                Start New Analysis
+            </a>
+            <a href="{% url 'reports_list' %}" 
+               class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all">
+                View All Reports
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

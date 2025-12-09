@@ -7,7 +7,10 @@ from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
 
-from apps.users.views import home, login_view, register_view, logout_view
+from apps.users.views import (
+    home, login_view, register_view, logout_view,
+    reports_list, report_detail, report_export_markdown
+)
 
 # Initialize Django Ninja API
 api = NinjaAPI(
@@ -36,5 +39,11 @@ urlpatterns = [
     path("login/", login_view, name="login"),
     path("register/", register_view, name="register"),
     path("logout/", logout_view, name="logout"),
+    
+    # Reports
+    path("reports/", reports_list, name="reports_list"),
+    path("reports/<int:report_id>/", report_detail, name="report_detail"),
+    path("reports/<int:report_id>/export/", report_export_markdown, name="report_export"),
 ]
+
 
