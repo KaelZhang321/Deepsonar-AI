@@ -87,3 +87,75 @@ class Report(models.Model):
         self.status = self.Status.FAILED
         self.completed_at = timezone.now()
         self.save()
+
+
+class ChatSession(models.Model):
+    """
+    Model to store chat sessions for conversation tracking.
+    
+    Each session represents a conversation thread between a user and the AI.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="chat_sessions",
+        help_text="User who owns this chat session"
+    )
+    title = models.CharField(
+        max_length=200,
+        default="New Chat",
+        help_text="Title of the chat session"
+    )
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the session was created"
+    )
+
+    class Meta:
+        db_table = "chat_sessions"
+        verbose_name = "Chat Session"
+        verbose_name_plural = "Chat Sessions"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Session: {self.title} ({self.created_at.strftime('%Y-%m-%d %H:%M')})"
+
+
+class ChatMessage(models.Model):
+    """
+    Model to store individual chat messages within a session.
+    """
+    class Sender(models.TextChoices):
+        USER = "user", "User"
+        AI = "ai", "AI"
+
+    session = models.ForeignKey(
+        ChatSession,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        help_text="The session this message belongs to"
+    )
+    sender = models.CharField(
+        max_length=10,
+        choices=Sender.choices,
+        help_text="Who sent the message"
+    )
+    content = models.TextField(
+        help_text="The message content"
+    )
+    timestamp = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the message was sent"
+    )
+
+    class Meta:
+        db_table = "chat_messages"
+        verbose_name = "Chat Message"
+        verbose_name_plural = "Chat Messages"
+        ordering = ["timestamp"]
+
+    def __str__(self) -> str:
+        return f"[{self.sender}] {self.content[:50]}..."
+
