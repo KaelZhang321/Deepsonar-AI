@@ -61,8 +61,9 @@ def create_market_researcher() -> Agent:
     """
     Create the Market Researcher agent.
 
-    This agent is responsible for analyzing topics using the Bocha AI
-    web search API to gather real-time information from the web.
+    In Pre-Search Mode (default), this agent does NOT use tools.
+    Search results are pre-fetched and injected into task descriptions.
+    This bypasses CrewAI tool calling issues with ARK API.
 
     Returns:
         Configured Market Researcher agent
@@ -70,23 +71,20 @@ def create_market_researcher() -> Agent:
     return Agent(
         role="市场研究专家",
         goal=(
-            "针对给定主题进行全面深入的市场研究。使用博查网页搜索工具获取最新的"
-            "市场数据、行业趋势、竞争对手信息和洞察分析。"
-            "搜索结果中包含引用编号 [1]、[2] 等，请在分析中使用这些编号标注信息来源。"
-            "所有输出必须使用中文。"
+            "整理和分析提供的搜索资料，提取关键市场信息。"
+            "保留所有 [Ref-N] 引用编号。使用中文输出。"
+            "直接基于提供的资料进行分析，不需要其他操作。"
         ),
         backstory=(
-            "您是一位拥有15年商业情报分析经验的资深市场研究专家。"
-            "您擅长使用网络搜索工具获取第一手市场情报，并对信息进行严谨的分析和整理。"
-            "您的研究报告以数据详实、来源可靠著称。"
-            "重要提示：您必须使用 Bocha Web Search 工具搜索相关信息，"
-            "并在输出中保留所有引用编号（如 [1]、[2]），以便后续报告中正确引用来源。"
+            "您是资深市场研究专家。根据提供的搜索资料整理成结构化研究发现，保留 [Ref-N] 来源编号。"
         ),
         llm=get_ark_llm(),
-        tools=[],  # Temporarily disabled - testing CrewAI + ARK compatibility
+        tools=[],  # Disabled: Pre-search mode provides data directly
         verbose=True,
-        memory=True,
+        memory=False,
         allow_delegation=False,
+        max_iter=3,
+        handle_parsing_errors=True,
     )
 
 
@@ -103,23 +101,21 @@ def create_business_analyst() -> Agent:
     return Agent(
         role="商业分析师",
         goal=(
-            "分析研究数据，撰写一份结构清晰、内容全面的商业分析报告。"
-            "报告必须使用中文撰写，格式采用 Markdown。"
-            "重要：在报告正文中使用论文引用格式 [1]、[2] 等标注信息来源，"
-            "并在报告末尾添加【参考文献】章节，列出所有引用来源的完整信息。"
+            "分析研究数据，撰写结构清晰的商业分析报告（Markdown格式）。"
+            "使用 [Ref-N] 格式引用来源，结尾添加'参考文献'章节。"
+            "信息足够时立即输出，不要反复验证。"
         ),
         backstory=(
-            "您是一位经验丰富的商业分析师，擅长将原始数据转化为战略洞察。"
-            "您毕业于顶尖商学院，曾为多家世界500强企业提供咨询服务。"
-            "您的报告以清晰的逻辑、深入的分析和切实可行的建议著称。"
-            "您严格遵循学术规范，在报告中使用 [数字] 格式引用信息来源，"
-            "并在报告最后提供完整的参考文献列表。请始终使用中文撰写报告。"
+            "您是资深商业分析师，注重数据来源的严谨性。"
+            "报告格式：正文使用[Ref-N]引用，结尾添加'参考文献'列表。"
         ),
         llm=get_ark_llm(),
-        tools=[],  # Analyst works with data provided by Researcher
+        tools=[],
         verbose=True,
-        memory=True,
+        memory=False,
         allow_delegation=False,
+        max_iter=3,
+        handle_parsing_errors=True,
     )
 
 
@@ -143,23 +139,19 @@ def create_quality_supervisor() -> Agent:
     return Agent(
         role="质量审核总监",
         goal=(
-            "审核商业分析报告的质量、准确性和完整性。确保报告达到专业标准，"
-            "为读者提供有价值的可操作信息。审批通过或提出修改意见。"
-            "确保最终报告使用规范的中文表达，逻辑清晰，内容准确。"
+            "快速审核商业分析报告的质量。确认报告包含引用和参考文献后立即通过。"
+            "不要反复审核，一次审核后立即输出结果。"
         ),
         backstory=(
-            "您是一位严谨细致的质量保证总监，在编辑审核和商业咨询领域拥有丰富经验。"
-            "您审阅过数千份商业报告，深谙高质量报告与平庸报告的区别。"
-            "您确保每一份发布的报告都经过精心打磨、准确无误且具有商业价值。"
-            "您要求严格但评判公正——认可优秀作品，对需要改进之处提供建设性反馈。"
-            "请使用中文进行所有审核和反馈。"
+            "您是质量保证总监。快速检查报告是否包含[Ref-N]引用和参考文献章节，然后立即通过。"
         ),
         llm=get_ark_llm(),
         tools=[],
         verbose=True,
-        memory=True,
-        # Disabled delegation due to ARK API compatibility issues with CrewAI internal tools
+        memory=False,
         allow_delegation=False,
+        max_iter=3,
+        handle_parsing_errors=True,
     )
 
 
