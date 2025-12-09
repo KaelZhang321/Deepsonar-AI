@@ -47,6 +47,43 @@ from asgiref.sync import sync_to_async
 import chainlit as cl
 import chainlit.data
 from dotenv import load_dotenv
+import re
+
+
+def filter_review_content(content: str) -> str:
+    """
+    Filter out review/audit opinion sections from the report content.
+    Removes sections that contain quality review feedback.
+    """
+    if not content:
+        return content
+    
+    # Patterns to remove (review-related sections)
+    patterns_to_remove = [
+        # Chinese review section headers
+        r'#+\s*审核意见.*?(?=\n#|\n##|\Z)',
+        r'#+\s*质量审核.*?(?=\n#|\n##|\Z)',
+        r'#+\s*审核反馈.*?(?=\n#|\n##|\Z)',
+        r'#+\s*修改建议.*?(?=\n#|\n##|\Z)',
+        r'#+\s*审核结果.*?(?=\n#|\n##|\Z)',
+        # English review section headers
+        r'#+\s*Review\s*(Comments|Feedback|Notes).*?(?=\n#|\n##|\Z)',
+        r'#+\s*Quality\s*Review.*?(?=\n#|\n##|\Z)',
+        r'#+\s*Audit\s*(Opinion|Feedback).*?(?=\n#|\n##|\Z)',
+        # Inline review markers
+        r'\*\*审核意见[：:]\*\*.*?(?=\n\n|\n#|\Z)',
+        r'\*\*质量审核[：:]\*\*.*?(?=\n\n|\n#|\Z)',
+    ]
+    
+    filtered = content
+    for pattern in patterns_to_remove:
+        filtered = re.sub(pattern, '', filtered, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Clean up multiple consecutive blank lines
+    filtered = re.sub(r'\n{3,}', '\n\n', filtered)
+    
+    return filtered.strip()
+
 
 # Add the project root to path for ai_engine imports
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -259,26 +296,26 @@ async def on_chat_start() -> None:
         cl.Action(
             name="view_history",
             payload={"action": "history"},
-            label="📜 View Chat History",
+            label="📜 查看对话历史",
         )
     ]
 
     # Send welcome message with action buttons
-    welcome_msg = f"""# 🔍 AI Business Analysis Platform
+    welcome_msg = f"""# 🔍 DeepSonar AI 商业分析平台
 
-Welcome, **{username}**! I'm your AI-powered business analysis assistant.
+欢迎您，**{username}**！我是您的 AI 商业分析助手。
 
-**How it works:**
-1. Enter a topic or keyword (e.g., 'electric vehicles market')
-2. Our AI team will research and analyze the topic:
-   - 🔎 **Market Researcher** - Gathers market data
-   - 📊 **Business Analyst** - Writes comprehensive report
-   - ✅ **Quality Supervisor** - Reviews and ensures quality
-3. Receive a professional business analysis report
+**使用说明：**
+1. 输入一个主题或关键词（例如：'新能源汽车市场'、'人工智能行业'）
+2. 我们的 AI 团队将自动研究和分析该主题：
+   - 🔎 **市场研究专家** - 收集市场数据和行业情报
+   - 📊 **商业分析师** - 撰写深度分析报告
+   - ✅ **质量审核总监** - 审核确保报告质量
+3. 获取一份专业的商业分析报告
 
-📊 **[View Your Reports](http://localhost:8000/reports/)** - Export as Markdown
+📊 **[查看历史报告](http://localhost:8000/reports/)** - 支持导出为 Markdown、Word、PDF
 
-**Enter a topic to get started!**
+**请输入一个主题开始分析！**
 """
     await cl.Message(content=welcome_msg, actions=actions).send()
 
@@ -289,24 +326,24 @@ async def on_action_view_history(action: cl.Action):
     django_user = cl.user_session.get("django_user")
     
     if django_user is None:
-        await cl.Message(content="⚠️ Please log in to view your chat history.").send()
+        await cl.Message(content="⚠️ 请先登录以查看对话历史。").send()
         return
     
     sessions = await get_user_chat_sessions(django_user)
     
     if not sessions:
-        await cl.Message(content="📭 No chat history found. Start a conversation to create history!").send()
+        await cl.Message(content="📭 暂无对话历史。开始一次对话来创建历史记录！").send()
         return
     
     # Format history as a nice list
-    history_text = "# 📜 Your Chat History\n\n"
-    history_text += "| # | Session | Date | Messages |\n"
-    history_text += "|---|---------|------|----------|\n"
+    history_text = "# 📜 您的对话历史\n\n"
+    history_text += "| # | 会话标题 | 日期 | 消息数 |\n"
+    history_text += "|---|---------|------|--------|\n"
     
     for i, session in enumerate(sessions, 1):
         history_text += f"| {i} | {session['title'][:30]} | {session['created_at']} | {session['message_count']} |\n"
     
-    history_text += "\n*Showing last 10 sessions*"
+    history_text += "\n*显示最近10条会话*"
     
     await cl.Message(content=history_text).send()
 
@@ -415,8 +452,9 @@ async def on_message(message: cl.Message) -> None:
             # Update pipeline step
             pipeline_step.output = "✅ All agents completed their tasks!"
 
-        # Save the result to the database
-        await mark_report_completed(report, result)
+        # Save the result to the database (filter out review/audit opinions)
+        filtered_result = filter_review_content(result)
+        await mark_report_completed(report, filtered_result)
         
         # Save AI response to chat history
         await save_chat_message(
