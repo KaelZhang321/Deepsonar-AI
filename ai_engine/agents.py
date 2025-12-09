@@ -57,13 +57,16 @@ def get_ark_llm() -> LLM:
 
 
 
-def create_market_researcher() -> Agent:
+def create_market_researcher(step_callback=None) -> Agent:
     """
     Create the Market Researcher agent.
 
     In Pre-Search Mode (default), this agent does NOT use tools.
     Search results are pre-fetched and injected into task descriptions.
     This bypasses CrewAI tool calling issues with ARK API.
+
+    Args:
+        step_callback: Optional callback for step-by-step logging
 
     Returns:
         Configured Market Researcher agent
@@ -79,21 +82,22 @@ def create_market_researcher() -> Agent:
             "您是资深市场研究专家。根据提供的搜索资料整理成结构化研究发现，保留 [Ref-N] 来源编号。"
         ),
         llm=get_ark_llm(),
-        tools=[],  # Disabled: Pre-search mode provides data directly
+        tools=[],
         verbose=True,
         memory=False,
         allow_delegation=False,
         max_iter=3,
         handle_parsing_errors=True,
+        step_callback=step_callback,
     )
 
 
-def create_business_analyst() -> Agent:
+def create_business_analyst(step_callback=None) -> Agent:
     """
     Create the Business Analyst agent.
 
-    This agent analyzes the research data and produces a comprehensive
-    business analysis report in markdown format with proper citations.
+    Args:
+        step_callback: Optional callback for step-by-step logging
 
     Returns:
         Configured Business Analyst agent
@@ -116,22 +120,16 @@ def create_business_analyst() -> Agent:
         allow_delegation=False,
         max_iter=3,
         handle_parsing_errors=True,
+        step_callback=step_callback,
     )
 
 
-def create_quality_supervisor() -> Agent:
+def create_quality_supervisor(step_callback=None) -> Agent:
     """
     Create the Quality Supervisor agent.
 
-    SUPERVISION/REVIEW LOGIC:
-    -------------------------
-    This agent implements a quality control pattern where it:
-    1. Reviews the report produced by the Business Analyst
-    2. Evaluates it against quality criteria (completeness, accuracy, clarity)
-    3. Either approves the report OR provides specific feedback for revision
-
-    The supervisor can delegate work back to other agents if the quality
-    isn't satisfactory, ensuring the final output meets professional standards.
+    Args:
+        step_callback: Optional callback for step-by-step logging
 
     Returns:
         Configured Quality Supervisor agent
@@ -152,20 +150,25 @@ def create_quality_supervisor() -> Agent:
         allow_delegation=False,
         max_iter=3,
         handle_parsing_errors=True,
+        step_callback=step_callback,
     )
 
 
 # Factory function to create all agents
-def create_all_agents() -> dict[str, Agent]:
+def create_all_agents(step_callback=None) -> dict[str, Agent]:
     """
     Create all agents for the business analysis crew.
+
+    Args:
+        step_callback: Optional callback function to receive step-by-step logs.
+                       This enables real-time UI updates.
 
     Returns:
         Dictionary mapping agent names to Agent instances
     """
     return {
-        "researcher": create_market_researcher(),
-        "analyst": create_business_analyst(),
-        "supervisor": create_quality_supervisor(),
+        "researcher": create_market_researcher(step_callback),
+        "analyst": create_business_analyst(step_callback),
+        "supervisor": create_quality_supervisor(step_callback),
     }
 

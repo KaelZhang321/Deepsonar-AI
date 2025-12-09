@@ -348,6 +348,64 @@ class BochaWebSearchTool(BaseTool):
             print(f"Database save error: {e}")
 
 
+class BochaAISearchTool(BaseTool):
+    """
+    Bocha AI Search Tool - Search with AI-generated answers and structured cards.
+    """
+    name: str = "Bocha AI Search"
+    description: str = (
+        "使用博查AI进行智能搜索，提供直接答案、引用来源和垂域结构化数据（如医药百科、统计数据等）。"
+        "适合需要精准回答或专业百科信息的查询。"
+        "输入应为搜索关键词字符串。"
+    )
+
+    def _run(self, query: str) -> str:
+        """
+        Execute an AI search.
+
+        Args:
+            query: The search query
+
+        Returns:
+            AI generated answer with references
+        """
+        try:
+            from ai_engine.bocha_api import bocha_ai_search, parse_bocha_response
+            
+            raw_response = bocha_ai_search(query, count=10, answer=True, stream=False)
+            parsed = parse_bocha_response(raw_response)
+            
+            web_sources = parsed.get("web_sources", [])
+            answer = parsed.get("answer", "")
+            cards = parsed.get("modal_cards", [])
+            
+            # Save to DB (optional, reusing existing logic if relevant but structure differs)
+            # For now just format output for Agent
+            
+            output = f"【智能回答】\n{answer}\n\n"
+            
+            if cards:
+                output += "【专业卡片信息】\n"
+                for card in cards:
+                    card_type = card.get("type", "")
+                    card_data = card.get("data", [])
+                    # Simple dump for card data, could be refined
+                    output += f"- 类型: {card_type}\n  内容: {str(card_data)[:500]}...\n"
+                output += "\n"
+            
+            output += "【参考来源】\n"
+            for i, source in enumerate(web_sources, 1):
+                name = source.get("name", "无标题")
+                url = source.get("url", "")
+                snippet = source.get("snippet", "")
+                output += f"{i}. {name} ({url})\n   摘要: {snippet[:200]}...\n"
+                
+            return output
+            
+        except Exception as e:
+            return f"AI Search failed: {str(e)}"
+
+
 # Instantiate tools for easy import
 search_tool = DuckDuckGoSearchTool()
 crawler_tool = WebCrawlerTool()

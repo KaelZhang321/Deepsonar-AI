@@ -12,7 +12,7 @@ import requests
 from typing import Optional
 
 
-def pre_search(query: str, count: int = 5) -> dict:
+def pre_search(query: str, count: int = 20) -> dict:
     """
     Perform a web search before crew execution.
     
@@ -109,11 +109,13 @@ def format_research_data(topic: str, search_data: dict) -> str:
     Returns:
         Formatted research context string
     """
-    output = f"## 「{topic}」相关搜索资料\n\n"
+    output = f"## 「{topic}」相关搜索资料（共 {len(search_data['references'])} 条真实来源）\n\n"
+    output += "【重要警告】以下是真实的搜索结果和URL，报告中必须使用这些真实链接，禁止编造假链接！\n\n"
     output += search_data["search_results"]
-    output += "\n\n---\n\n## 参考文献模板\n\n"
+    output += "\n\n---\n\n## 【必须使用的参考文献】（真实URL，禁止修改）\n\n"
     for ref in search_data["references"]:
         output += f"- {ref}\n"
+    output += "\n【强制要求】报告结尾的参考文献必须原样复制上述列表，不得编造 example.com 等假链接！\n"
     
     return output
 

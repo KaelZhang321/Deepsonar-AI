@@ -55,25 +55,33 @@ class BusinessAnalysisCrew:
         self.use_pre_search = use_pre_search
         self._agents: Optional[dict] = None
         self._crew: Optional[Crew] = None
+        self._step_callback: Optional[Callable] = None
 
-    def _setup_agents(self) -> dict:
-        """Create and cache agents."""
-        if self._agents is None:
-            self._agents = create_all_agents()
+    def _setup_agents(self, step_callback=None) -> dict:
+        """Create and cache agents with optional step callback."""
+        if self._agents is None or step_callback != self._step_callback:
+            self._step_callback = step_callback
+            self._agents = create_all_agents(step_callback=step_callback)
         return self._agents
 
-    def _build_crew(self, topic: str, search_data: Optional[str] = None) -> Crew:
+    def _build_crew(
+        self, 
+        topic: str, 
+        search_data: Optional[str] = None,
+        step_callback: Optional[Callable] = None
+    ) -> Crew:
         """
         Build the crew for a specific topic.
 
         Args:
             topic: The topic to analyze
             search_data: Pre-fetched search data (for pre-search mode)
+            step_callback: Optional callback for live step logging
 
         Returns:
             Configured Crew instance
         """
-        agents = self._setup_agents()
+        agents = self._setup_agents(step_callback)
 
         # Create tasks with pre-search data if available
         tasks = create_all_tasks(
@@ -102,6 +110,7 @@ class BusinessAnalysisCrew:
         self,
         topic: str,
         callback: Optional[Callable[[str], None]] = None,
+        step_callback: Optional[Callable] = None,
     ) -> str:
         """
         Run the business analysis crew on a topic.
@@ -115,6 +124,7 @@ class BusinessAnalysisCrew:
         Args:
             topic: The keyword or topic to analyze
             callback: Optional callback function for streaming output
+            step_callback: Optional callback for live step-by-step logging
 
         Returns:
             The final business analysis report as a string
@@ -123,26 +133,37 @@ class BusinessAnalysisCrew:
         
         if self.use_pre_search:
             # === PRE-SEARCH PHASE ===
+            if step_callback:
+                step_callback("🔍 正在搜索相关资料...")
             print(f"🔍 Pre-Search Mode: Fetching data for '{topic}'...")
             
-            search_result = pre_search(topic, count=5)
+            search_result = pre_search(topic)
             
             if search_result["raw_data"]:
                 # Save to database
                 try:
                     save_search_to_db(topic, search_result)
+                    if step_callback:
+                        step_callback(f"💾 已保存 {len(search_result['raw_data'])} 条搜索结果")
                     print(f"💾 Saved {len(search_result['raw_data'])} search results to database")
                 except Exception as e:
                     print(f"⚠️ Database save failed: {e}")
                 
                 # Format for injection
                 search_data_str = format_research_data(topic, search_result)
+                if step_callback:
+                    step_callback(f"✅ 搜索完成: {len(search_result['raw_data'])} 条结果就绪")
                 print(f"✅ Pre-search complete: {len(search_result['raw_data'])} results ready")
             else:
+                if step_callback:
+                    step_callback("⚠️ 未找到搜索结果，将使用专业知识分析")
                 print("⚠️ No search results found, crew will use general knowledge")
         
         # === CREW EXECUTION PHASE ===
-        crew = self._build_crew(topic, search_data_str)
+        if step_callback:
+            step_callback("🚀 启动 AI 智能体团队...")
+        
+        crew = self._build_crew(topic, search_data_str, step_callback)
         result = crew.kickoff()
 
         # Handle different result types
@@ -159,6 +180,7 @@ class BusinessAnalysisCrew:
         self,
         topic: str,
         callback: Optional[Callable[[str], None]] = None,
+        step_callback: Optional[Callable] = None,
     ) -> str:
         """
         Async version of run for integration with async frameworks.
@@ -166,6 +188,7 @@ class BusinessAnalysisCrew:
         Args:
             topic: The keyword or topic to analyze
             callback: Optional callback function for streaming output
+            step_callback: Optional callback for live step-by-step logging
 
         Returns:
             The final business analysis report as a string
@@ -174,21 +197,34 @@ class BusinessAnalysisCrew:
         
         if self.use_pre_search:
             # Pre-search (sync, but fast)
+            if step_callback:
+                step_callback("🔍 正在搜索相关资料...")
             print(f"🔍 Pre-Search Mode: Fetching data for '{topic}'...")
             
-            search_result = pre_search(topic, count=5)
+            search_result = pre_search(topic)
             
             if search_result["raw_data"]:
                 try:
                     save_search_to_db(topic, search_result)
+                    if step_callback:
+                        step_callback(f"💾 已保存 {len(search_result['raw_data'])} 条搜索结果")
                 except Exception as e:
                     print(f"⚠️ Database save failed: {e}")
                 
                 search_data_str = format_research_data(topic, search_result)
+                if step_callback:
+                    step_callback(f"✅ 搜索完成: {len(search_result['raw_data'])} 条结果就绪")
                 print(f"✅ Pre-search complete: {len(search_result['raw_data'])} results ready")
+            else:
+                if step_callback:
+                    step_callback("⚠️ 未找到搜索结果，将使用专业知识分析")
         
-        crew = self._build_crew(topic, search_data_str)
+        if step_callback:
+            step_callback("🚀 启动 AI 智能体团队...")
+        
+        crew = self._build_crew(topic, search_data_str, step_callback)
         result = await crew.kickoff_async()
+
 
         if hasattr(result, "raw"):
             output = result.raw
