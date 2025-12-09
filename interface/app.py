@@ -447,63 +447,126 @@ async def on_message(message: cl.Message) -> None:
     # Create a Report record in the database
     report = await create_report(topic, django_user)
 
+    # Create live log side panel
+    # We use a simple alphanumeric name to ensure binding works correctly
+    side_view_name = "live_logs" 
+    side_view = cl.Text(
+        name=side_view_name,
+        content="🚀 系统启动，初始化智能体团队...\n",
+        display="side",
+        language="bash"
+    )
+    
     # Send initial status message
-    init_msg = cl.Message(content=f"🚀 **Starting analysis for:** {topic}")
+    # Attaching side_view here makes it available immediately
+    init_msg = cl.Message(
+        content=f"🚀 **Starting analysis for:** {topic}\n\n👇 *详细日志已生成，请查看侧边栏或点击下方 {side_view_name}*",
+        elements=[side_view]
+    )
     await init_msg.send()
+
+    # Define simple log stream manager
+    class LogStream:
+        def __init__(self, element, msg_id):
+            self.element = element
+            self.content = element.content
+            self.msg_id = msg_id
+
+        async def update(self):
+            """Async update method using robust strategies."""
+            self.element.content = self.content
+            
+            # Strategy 1: Try update()
+            if hasattr(self.element, "update"):
+                try:
+                    await self.element.update()
+                    return
+                except Exception:
+                    pass
+            
+            # Strategy 2: Re-send (Overwrite) to same message
+            try:
+                # Note: Sending the element again updates it if name matches?
+                # Or we can update the message elements?
+                await self.element.send(for_id=self.msg_id)
+            except Exception:
+                pass
+
+        def append_sync(self, text):
+            # Add line buffering to prevent too frequent updates? 
+            # For now append directly
+            self.content += f"{text}\n"
+
+    log_stream = LogStream(side_view, init_msg.id)
+
+    # Define step callback for CrewAI
+    def handle_agent_step(step_output):
+        """Callback for every agent step to update the UI."""
+        # Extract thought/log content
+        thought = str(step_output)
+        if hasattr(step_output, 'thought'):
+             thought = step_output.thought
+        elif isinstance(step_output, dict) and 'thought' in step_output:
+            thought = step_output['thought']
+        elif isinstance(step_output, tuple) and len(step_output) > 0:
+            thought = str(step_output[0])
+            
+        log_entry = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" 
+            f"🤖 Agent 动作检测:\n" 
+            f"{thought}\n" 
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        # Update UI asynchronously from sync callback
+        cl.run_sync(
+            async_append_log(log_stream, log_entry)
+        )
+
+    async def async_append_log(stream, text):
+        """Async helper to append logs."""
+        stream.append_sync(text)
+        await stream.update()
 
     try:
         # Get the crew from session
         crew: BusinessAnalysisCrew = cl.user_session.get("crew")
 
-        # Create parent step for the entire analysis process
-        async with cl.Step(name="📊 Business Analysis Pipeline", type="run") as pipeline_step:
-            pipeline_step.output = "Initializing AI agent team..."
+        # Run the actual crew with live logging
+        log_stream.append_sync("✅ 团队组建完成，开始执行任务...")
+        await log_stream.update()
+        
+        # We need to run run_async but pass the sync handle_agent_step callback
+        # The handle_agent_step callback itself handles the sync->async bridge
+        
+        # Note: We pass handle_agent_step as the callback for live logging
+        result = await crew.run_async(topic, step_callback=handle_agent_step)
+        
+        # === FINAL REPORT DISPLAY ===
+        # Switch side panel to report mode
+        
+        # Ensure result is a string for display
+        if result is None:
+            display_result = "No output generated."
+        elif hasattr(result, 'raw'):
+            display_result = str(result.raw)
+        elif hasattr(result, 'output'):
+            display_result = str(result.output)
+        else:
+            display_result = str(result)
             
-            # Step 1: Market Research
-            async with cl.Step(name="🔎 Market Researcher", type="tool") as research_step:
-                research_step.input = f"Researching topic: {topic}"
-                research_step.output = "Gathering market data, trends, and competitor information..."
-                
-                # Simulate progress update
-                await cl.sleep(0.5)
-                research_step.output = "• Analyzing market size and growth trends\n• Identifying key players\n• Researching recent developments"
-            
-            # Step 2: Business Analysis
-            async with cl.Step(name="📈 Business Analyst", type="tool") as analyst_step:
-                analyst_step.input = "Processing research data"
-                analyst_step.output = "Creating comprehensive business analysis report..."
-                
-                await cl.sleep(0.5)
-                analyst_step.output = "• Synthesizing market research\n• Performing SWOT analysis\n• Developing strategic recommendations"
-            
-            # Step 3: Quality Review
-            async with cl.Step(name="✅ Quality Supervisor", type="tool") as review_step:
-                review_step.input = "Reviewing analysis report"
-                review_step.output = "Ensuring report quality and completeness..."
-            
-            # Step 4: Execute the crew (this is the main AI processing)
-            async with cl.Step(name="🤖 AI Processing", type="llm") as llm_step:
-                llm_step.input = f"Topic: {topic}"
-                llm_step.output = "Processing with AI agents..."
-                
-                # Run the actual crew
-                result = await crew.run_async(topic)
-                
-                # Ensure result is a string
-                if result is None:
-                    result = "No output generated. Please try again."
-                elif hasattr(result, 'raw'):
-                    result = str(result.raw)
-                elif hasattr(result, 'output'):
-                    result = str(result.output)
-                else:
-                    result = str(result)
-                
-                # Update step with completion
-                llm_step.output = "✅ Analysis completed successfully!"
-            
-            # Update pipeline step
-            pipeline_step.output = "✅ All agents completed their tasks!"
+        side_view.content = display_result
+        side_view.language = "markdown"
+        side_view.name = "✅ 最终深度分析报告"
+        
+        if hasattr(side_view, "update"):
+            await side_view.update()
+        else:
+            await side_view.send(for_id=init_msg.id)
+        
+        await cl.Message(
+            content=f"🎉 **{topic}** 分析完成！\n\n👉 请查看右侧面板阅读完整报告。",
+        ).send()
 
         # Save the result to the database (filter out review/audit opinions)
         filtered_result = filter_review_content(result)
@@ -516,7 +579,7 @@ async def on_message(message: cl.Message) -> None:
             content=result
         )
 
-        # Send the final report
+        # Send the final report (also in main chat)
         report_content = f"""# 📊 Business Analysis Report
 
 **Topic:** {topic}
@@ -536,6 +599,13 @@ async def on_message(message: cl.Message) -> None:
     except Exception as e:
         # Handle errors
         error_message = str(e)
+        # Log to side panel if possible
+        log_stream.append_sync(f"\n❌ 错误: {error_message}")
+        try:
+            await log_stream.update()
+        except:
+            pass
+            
         await mark_report_failed(report, error_message)
         
         # Save error to chat history

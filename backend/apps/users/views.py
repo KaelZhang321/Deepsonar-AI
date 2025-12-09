@@ -287,6 +287,10 @@ def report_export_pdf(request, report_id):
     import re
     
     try:
+        from django.conf import settings
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+    
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import inch
@@ -298,18 +302,39 @@ def report_export_pdf(request, report_id):
     
     report = get_object_or_404(Report, id=report_id, user=request.user)
     
+    # Register Chinese Font
+    try:
+        font_path = settings.BASE_DIR / 'static' / 'fonts' / 'SimHei.ttf'
+        if font_path.exists():
+            pdfmetrics.registerFont(TTFont('SimHei', str(font_path)))
+            default_font = 'SimHei'
+        else:
+            # Fallback or log warning
+            default_font = 'Helvetica'
+            print(f"Warning: Font file not found at {font_path}")
+    except Exception as e:
+        default_font = 'Helvetica'
+        print(f"Error registering font: {e}")
+
     # Create PDF
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
     
     styles = getSampleStyleSheet()
     
+    # Update default style font
+    styles['Normal'].fontName = default_font
+    styles['Heading1'].fontName = default_font
+    styles['Heading2'].fontName = default_font
+    styles['Heading3'].fontName = default_font
+    styles['Code'].fontName = default_font # Or keep Courier if SimHei doesn't look good for code, but SimHei supports ASCII too
+    
     # Custom styles
-    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=24, spaceAfter=20, alignment=TA_CENTER)
-    h1_style = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=18, spaceAfter=12, spaceBefore=16)
-    h2_style = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=14, spaceAfter=10, spaceBefore=14)
-    h3_style = ParagraphStyle('H3', parent=styles['Heading3'], fontSize=12, spaceAfter=8, spaceBefore=12)
-    code_style = ParagraphStyle('Code', parent=styles['Code'], fontName='Courier', fontSize=9, backColor='#f0f0f0')
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontName=default_font, fontSize=24, spaceAfter=20, alignment=TA_CENTER)
+    h1_style = ParagraphStyle('H1', parent=styles['Heading1'], fontName=default_font, fontSize=18, spaceAfter=12, spaceBefore=16)
+    h2_style = ParagraphStyle('H2', parent=styles['Heading2'], fontName=default_font, fontSize=14, spaceAfter=10, spaceBefore=14)
+    h3_style = ParagraphStyle('H3', parent=styles['Heading3'], fontName=default_font, fontSize=12, spaceAfter=8, spaceBefore=12)
+    code_style = ParagraphStyle('Code', parent=styles['Code'], fontName='Courier', fontSize=9, backColor='#f0f0f0') # Courier is usually safe, or use SimHei
     
     story = []
     
@@ -397,10 +422,11 @@ def report_export_pdf(request, report_id):
             if table_data:
                 # Create table
                 t = Table(table_data)
+                # Ensure table uses Chinese font
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, -1), default_font), # Use Chinese font
                     ('FONTSIZE', (0, 0), (-1, -1), 10),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
