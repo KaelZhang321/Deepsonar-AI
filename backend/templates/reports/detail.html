@@ -11,10 +11,20 @@
                class="text-gray-400 hover:text-white transition-colors">
                 ← Back to Reports
             </a>
-            <a href="{% url 'report_export' report.id %}" 
-               class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center gap-2">
-                📥 Export as Markdown
-            </a>
+            <div class="flex gap-2">
+                <a href="{% url 'report_export_md' report.id %}" 
+                   class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-all text-sm">
+                    📄 Markdown
+                </a>
+                <a href="{% url 'report_export_word' report.id %}" 
+                   class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all text-sm">
+                    📝 Word
+                </a>
+                <a href="{% url 'report_export_pdf' report.id %}" 
+                   class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all text-sm">
+                    📕 PDF
+                </a>
+            </div>
         </div>
 
         <!-- Report Card -->

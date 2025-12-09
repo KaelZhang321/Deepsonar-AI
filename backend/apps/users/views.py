@@ -116,3 +116,309 @@ def report_export_markdown(request, report_id):
     
     return response
 
+
+@login_required
+def report_export_word(request, report_id):
+    """Export report as Word document with Markdown parsing."""
+    from io import BytesIO
+    import re
+    
+    try:
+        from docx import Document
+        from docx.shared import Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.enum.style import WD_STYLE_TYPE
+    except ImportError:
+        return HttpResponse("Word export requires python-docx. Install with: pip install python-docx", status=500)
+    
+    report = get_object_or_404(Report, id=report_id, user=request.user)
+    
+    # Create Word document
+    doc = Document()
+    
+    # Document title
+    title = doc.add_heading(report.query, 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Metadata
+    meta = doc.add_paragraph()
+    meta.add_run(f"Report ID: {report.id} | Created: {report.created_at.strftime('%Y-%m-%d %H:%M')}").italic = True
+    
+    doc.add_paragraph("─" * 60)
+    
+    # Parse Markdown content
+    content = report.output or "No content available."
+    lines = content.split('\n')
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        
+        # Headings
+        if line.startswith('# '):
+            doc.add_heading(line[2:].strip(), level=1)
+        elif line.startswith('## '):
+            doc.add_heading(line[3:].strip(), level=2)
+        elif line.startswith('### '):
+            doc.add_heading(line[4:].strip(), level=3)
+        elif line.startswith('#### '):
+            doc.add_heading(line[5:].strip(), level=4)
+        
+        # Horizontal rule
+        elif line.strip() in ['---', '***', '___']:
+            doc.add_paragraph("─" * 60)
+        
+        # Unordered list
+        elif line.strip().startswith(('- ', '* ', '+ ')):
+            para = doc.add_paragraph(line.strip()[2:], style='List Bullet')
+        
+        # Ordered list
+        elif re.match(r'^\d+\.\s', line.strip()):
+            text = re.sub(r'^\d+\.\s', '', line.strip())
+            para = doc.add_paragraph(text, style='List Number')
+        
+        # Code block
+        elif line.strip().startswith('```'):
+            code_lines = []
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith('```'):
+                code_lines.append(lines[i])
+                i += 1
+            if code_lines:
+                code_para = doc.add_paragraph()
+                code_run = code_para.add_run('\n'.join(code_lines))
+                code_run.font.name = 'Courier New'
+                code_run.font.size = Pt(9)
+        
+        # Table (starts with |)
+        elif line.strip().startswith('|') and '|' in line.strip()[1:]:
+            # Collect all table rows
+            table_rows = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                row_line = lines[i].strip()
+                # Skip separator line (|---|---|)
+                if not re.match(r'^\|[\s\-:]+\|$', row_line.replace('|', '|').replace('-', '-')):
+                    if '---' not in row_line and ':--' not in row_line and '--:' not in row_line:
+                        cells = [cell.strip() for cell in row_line.split('|')[1:-1]]
+                        if cells:
+                            table_rows.append(cells)
+                i += 1
+            i -= 1  # Adjust for the outer loop increment
+            
+            if table_rows:
+                # Determine number of columns
+                num_cols = max(len(row) for row in table_rows)
+                table = doc.add_table(rows=len(table_rows), cols=num_cols)
+                table.style = 'Table Grid'
+                
+                for row_idx, row_data in enumerate(table_rows):
+                    row = table.rows[row_idx]
+                    for col_idx, cell_text in enumerate(row_data):
+                        if col_idx < num_cols:
+                            cell = row.cells[col_idx]
+                            cell.text = cell_text
+                            # Bold first row (header)
+                            if row_idx == 0:
+                                for para in cell.paragraphs:
+                                    for run in para.runs:
+                                        run.bold = True
+        
+        # Regular paragraph with inline formatting
+        elif line.strip():
+            para = doc.add_paragraph()
+            # Parse inline formatting: **bold**, *italic*, `code`
+            text = line.strip()
+            
+            # Simple parsing for bold, italic, code
+            parts = re.split(r'(\*\*.*?\*\*|\*.*?\*|`.*?`)', text)
+            for part in parts:
+                if part.startswith('**') and part.endswith('**'):
+                    run = para.add_run(part[2:-2])
+                    run.bold = True
+                elif part.startswith('*') and part.endswith('*') and not part.startswith('**'):
+                    run = para.add_run(part[1:-1])
+                    run.italic = True
+                elif part.startswith('`') and part.endswith('`'):
+                    run = para.add_run(part[1:-1])
+                    run.font.name = 'Courier New'
+                    run.font.size = Pt(10)
+                else:
+                    para.add_run(part)
+        
+        i += 1
+    
+    doc.add_paragraph("─" * 60)
+    footer = doc.add_paragraph()
+    footer.add_run("Generated by DeepSonar AI Business Analysis Platform").italic = True
+    
+    # Save to buffer
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    filename = f"report_{report.id}_{report.created_at.strftime('%Y%m%d')}.docx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+
+@login_required
+def report_export_pdf(request, report_id):
+    """Export report as PDF document with Markdown parsing."""
+    from io import BytesIO
+    import re
+    
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem, Preformatted, Table, TableStyle
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib import colors
+    except ImportError:
+        return HttpResponse("PDF export requires reportlab. Install with: pip install reportlab", status=500)
+    
+    report = get_object_or_404(Report, id=report_id, user=request.user)
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
+    
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=24, spaceAfter=20, alignment=TA_CENTER)
+    h1_style = ParagraphStyle('H1', parent=styles['Heading1'], fontSize=18, spaceAfter=12, spaceBefore=16)
+    h2_style = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=14, spaceAfter=10, spaceBefore=14)
+    h3_style = ParagraphStyle('H3', parent=styles['Heading3'], fontSize=12, spaceAfter=8, spaceBefore=12)
+    code_style = ParagraphStyle('Code', parent=styles['Code'], fontName='Courier', fontSize=9, backColor='#f0f0f0')
+    
+    story = []
+    
+    # Title
+    safe_title = report.query.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    story.append(Paragraph(safe_title, title_style))
+    story.append(Spacer(1, 12))
+    
+    # Metadata
+    story.append(Paragraph(f"<i>Report ID: {report.id} | Created: {report.created_at.strftime('%Y-%m-%d %H:%M')}</i>", styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    # Parse Markdown content
+    content = report.output or "No content available."
+    lines = content.split('\n')
+    
+    def escape_html(text):
+        return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    
+    def convert_inline_markdown(text):
+        """Convert inline markdown to ReportLab markup."""
+        text = escape_html(text)
+        # Bold: **text** -> <b>text</b>
+        text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+        # Italic: *text* -> <i>text</i>
+        text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+        # Code: `text` -> <font name="Courier">text</font>
+        text = re.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', text)
+        return text
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        
+        # Headings
+        if line.startswith('# '):
+            story.append(Paragraph(convert_inline_markdown(line[2:].strip()), h1_style))
+        elif line.startswith('## '):
+            story.append(Paragraph(convert_inline_markdown(line[3:].strip()), h2_style))
+        elif line.startswith('### ') or line.startswith('#### '):
+            level = 4 if line.startswith('#### ') else 3
+            text = line[level + 1:].strip()
+            story.append(Paragraph(convert_inline_markdown(text), h3_style))
+        
+        # Horizontal rule
+        elif line.strip() in ['---', '***', '___']:
+            story.append(Paragraph("─" * 60, styles['Normal']))
+            story.append(Spacer(1, 8))
+        
+        # List items
+        elif line.strip().startswith(('- ', '* ', '+ ')):
+            text = convert_inline_markdown(line.strip()[2:])
+            story.append(Paragraph(f"• {text}", styles['Normal']))
+        elif re.match(r'^\d+\.\s', line.strip()):
+            text = convert_inline_markdown(re.sub(r'^\d+\.\s', '', line.strip()))
+            match = re.match(r'^(\d+)\.', line.strip())
+            num = match.group(1) if match else '1'
+            story.append(Paragraph(f"{num}. {text}", styles['Normal']))
+        
+        # Code block
+        elif line.strip().startswith('```'):
+            code_lines = []
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith('```'):
+                code_lines.append(escape_html(lines[i]))
+                i += 1
+            if code_lines:
+                story.append(Spacer(1, 8))
+                story.append(Preformatted('\n'.join(code_lines), code_style))
+                story.append(Spacer(1, 8))
+        
+        # Table (starts with |)
+        elif line.strip().startswith('|') and '|' in line.strip()[1:]:
+            table_data = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                row_line = lines[i].strip()
+                # Skip separator line (|---|---|)
+                if '---' not in row_line and ':--' not in row_line and '--:' not in row_line:
+                    cells = [cell.strip() for cell in row_line.split('|')[1:-1]]
+                    if cells:
+                        table_data.append(cells)
+                i += 1
+            i -= 1  # Adjust for the outer loop increment
+            
+            if table_data:
+                # Create table
+                t = Table(table_data)
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                story.append(Spacer(1, 8))
+                story.append(t)
+                story.append(Spacer(1, 8))
+        
+        # Regular paragraph
+        elif line.strip():
+            story.append(Paragraph(convert_inline_markdown(line.strip()), styles['Normal']))
+            story.append(Spacer(1, 6))
+        
+        # Empty line = spacer
+        elif not line.strip() and i > 0:
+            story.append(Spacer(1, 8))
+        
+        i += 1
+    
+    story.append(Spacer(1, 24))
+    story.append(Paragraph("<i>Generated by DeepSonar AI Business Analysis Platform</i>", styles['Normal']))
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    filename = f"report_{report.id}_{report.created_at.strftime('%Y%m%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+

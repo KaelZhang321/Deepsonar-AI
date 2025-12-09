@@ -54,8 +54,9 @@ class DjangoDataLayer(BaseDataLayer):
     
     async def create_user(self, user: ChainlitUser) -> Optional[PersistedUser]:
         """Create a new user (handled by Django auth, return as PersistedUser)."""
+        user_id = user.metadata.get("user_id")
         return PersistedUser(
-            id=user.metadata.get("user_id", str(uuid.uuid4())),
+            id=str(user_id) if user_id else str(uuid.uuid4()),
             createdAt=datetime.now().isoformat(),
             identifier=user.identifier,
             metadata=user.metadata

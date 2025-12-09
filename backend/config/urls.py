@@ -9,7 +9,8 @@ from ninja import NinjaAPI
 
 from apps.users.views import (
     home, login_view, register_view, logout_view,
-    reports_list, report_detail, report_export_markdown
+    reports_list, report_detail, 
+    report_export_markdown, report_export_word, report_export_pdf
 )
 
 # Initialize Django Ninja API
@@ -43,7 +44,9 @@ urlpatterns = [
     # Reports
     path("reports/", reports_list, name="reports_list"),
     path("reports/<int:report_id>/", report_detail, name="report_detail"),
-    path("reports/<int:report_id>/export/", report_export_markdown, name="report_export"),
+    path("reports/<int:report_id>/export/md/", report_export_markdown, name="report_export_md"),
+    path("reports/<int:report_id>/export/word/", report_export_word, name="report_export_word"),
+    path("reports/<int:report_id>/export/pdf/", report_export_pdf, name="report_export_pdf"),
 ]
 
 

@@ -37,16 +37,20 @@
                     {{ report.created_at|date:"Y-m-d H:i" }}
                 </p>
                 
-                <div class="flex gap-3">
+                <div class="flex gap-2">
                     <a href="{% url 'report_detail' report.id %}" 
                        class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-center rounded-lg text-sm transition-all">
                         View Report
                     </a>
-                    <a href="{% url 'report_export' report.id %}" 
-                       class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-all"
-                       title="Export as Markdown">
-                        📥
-                    </a>
+                    <a href="{% url 'report_export_md' report.id %}" 
+                       class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs transition-all"
+                       title="Export as Markdown">MD</a>
+                    <a href="{% url 'report_export_word' report.id %}" 
+                       class="px-3 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-xs transition-all"
+                       title="Export as Word">DOC</a>
+                    <a href="{% url 'report_export_pdf' report.id %}" 
+                       class="px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-xs transition-all"
+                       title="Export as PDF">PDF</a>
                 </div>
             </div>
             {% endfor %}

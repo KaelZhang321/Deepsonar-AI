@@ -1,18 +1,28 @@
-# 🔍 Welcome to DeepSonar AI
+# 🔍 DeepSonar AI
 
-DeepSonar is your AI-powered business analysis platform.
+**重构商业信息的获取与分析方式**
 
-## Features
+专为具有战略眼光的企业打造。利用下一代 AI 代理网络，实现从全网情报捕获到深度决策研报的全流程自动化。
 
-- **Market Research** - Automated market data gathering and analysis
-- **Business Analysis** - Comprehensive SWOT analysis and strategic insights
-- **Quality Assurance** - AI-reviewed professional reports
-- **Export to Markdown** - Download reports for offline use
+---
 
-## Getting Started
+## 核心能力
 
-1. Enter a topic or keyword in the chat
-2. Our AI agents will research and analyze the topic
-3. Receive a professional business analysis report
+- **🌐 全域情报捕获** - 监控全网，自定义追踪来源覆盖全球财经媒体、社交平台、行业垂直论坛
+- **🧹 AI 深度清洗** - 使用大语言模型消除噪音，自动识别营销内容与虚假信息
+- **📊 结构化决策报告** - 自动生成深度周报（PDF/HTML），包含关键数据趋势、初步SWOT分析、AI辅助行动建议
+- **📈 综合趋势分析** - 实时数据聚合与趋势预测
 
-**Enter a topic to get started!**
+---
+
+## 使用流程
+
+1. **定义命题** - 设定业务命题、竞争对手或关注的市场领域
+2. **智能推演** - DeepSonar Agents 自动拆解任务，全网搜集线索，验证逻辑
+3. **交付洞察** - 定期收到精炼的决策日报，直接辅助战略制定
+
+---
+
+**不仅仅是聚合器，更是您的全自动化数据分析师。**
+
+*输入一个主题开始分析！*
