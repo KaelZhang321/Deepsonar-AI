@@ -60,27 +60,50 @@ def filter_review_content(content: str) -> str:
     
     # Patterns to remove (review-related sections)
     patterns_to_remove = [
-        # Chinese review section headers
-        r'#+\s*审核意见.*?(?=\n#|\n##|\Z)',
-        r'#+\s*质量审核.*?(?=\n#|\n##|\Z)',
-        r'#+\s*审核反馈.*?(?=\n#|\n##|\Z)',
-        r'#+\s*修改建议.*?(?=\n#|\n##|\Z)',
-        r'#+\s*审核结果.*?(?=\n#|\n##|\Z)',
+        # Chinese review section headers (any heading level)
+        r'#{1,6}\s*审核意见.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*质量审核.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*审核反馈.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*修改建议.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*审核结果.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*审核总结.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*审核评价.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*报告审核.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*质量评估.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*审核通过.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*Supervisor.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*Review.*?(?=\n#{1,6}\s|\Z)',
         # English review section headers
-        r'#+\s*Review\s*(Comments|Feedback|Notes).*?(?=\n#|\n##|\Z)',
-        r'#+\s*Quality\s*Review.*?(?=\n#|\n##|\Z)',
-        r'#+\s*Audit\s*(Opinion|Feedback).*?(?=\n#|\n##|\Z)',
-        # Inline review markers
+        r'#{1,6}\s*Quality\s*Review.*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*Audit\s*(Opinion|Feedback|Summary).*?(?=\n#{1,6}\s|\Z)',
+        r'#{1,6}\s*Final\s*Review.*?(?=\n#{1,6}\s|\Z)',
+        # Inline review markers (bold)
         r'\*\*审核意见[：:]\*\*.*?(?=\n\n|\n#|\Z)',
         r'\*\*质量审核[：:]\*\*.*?(?=\n\n|\n#|\Z)',
+        r'\*\*审核结果[：:]\*\*.*?(?=\n\n|\n#|\Z)',
+        r'\*\*审核通过[：:]\*\*.*?(?=\n\n|\n#|\Z)',
+        r'\*\*Supervisor[：:]\*\*.*?(?=\n\n|\n#|\Z)',
+        # Lines starting with review keywords
+        r'^审核意见[：:].*$',
+        r'^质量审核[：:].*$',
+        r'^审核结果[：:].*$',
+        r'^本报告审核.*$',
+        r'^经审核.*$',
+        # Paragraphs containing review statements
+        r'作为质量审核.*?(?=\n\n|\Z)',
+        r'经过审核.*?(?=\n\n|\Z)',
+        r'审核认为.*?(?=\n\n|\Z)',
+        r'审核建议.*?(?=\n\n|\Z)',
     ]
     
     filtered = content
     for pattern in patterns_to_remove:
-        filtered = re.sub(pattern, '', filtered, flags=re.DOTALL | re.IGNORECASE)
+        filtered = re.sub(pattern, '', filtered, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
     
     # Clean up multiple consecutive blank lines
     filtered = re.sub(r'\n{3,}', '\n\n', filtered)
+    # Clean up lines with only dashes/separators after removed content
+    filtered = re.sub(r'\n---\s*\n---', '\n---', filtered)
     
     return filtered.strip()
 
@@ -264,6 +287,36 @@ async def auth_callback(username: str, password: str) -> Optional[cl.User]:
 # =============================================================================
 # Chainlit Event Handlers
 # =============================================================================
+
+@cl.on_chat_resume
+async def on_chat_resume(thread: dict):
+    """
+    Handler for when a chat session is resumed (page reload/tab switch).
+    
+    This prevents the welcome message from being shown again when users
+    switch tabs and come back to the page.
+    """
+    # Restore user info
+    user_info = cl.user_session.get("user")
+    username = user_info.identifier if user_info else "Anonymous"
+    user_id = user_info.metadata.get("user_id") if user_info else None
+    
+    # Get Django user object if logged in
+    django_user = None
+    if user_id:
+        django_user = await get_user_by_username(username)
+    
+    # Recreate crew instance (it's stateless)
+    crew = BusinessAnalysisCrew(verbose=True)
+    cl.user_session.set("crew", crew)
+    cl.user_session.set("django_user", django_user)
+    cl.user_session.set("session_initialized", True)  # Mark as resumed
+    
+    # Send a brief resume message instead of full welcome
+    await cl.Message(
+        content=f"💡 **会话已恢复** - 欢迎回来，{username}！您可以继续输入主题进行分析。"
+    ).send()
+
 
 @cl.on_chat_start
 async def on_chat_start() -> None:
