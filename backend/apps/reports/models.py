@@ -159,3 +159,53 @@ class ChatMessage(models.Model):
     def __str__(self) -> str:
         return f"[{self.sender}] {self.content[:50]}..."
 
+
+class SearchResult(models.Model):
+    """
+    Model to store web search results from Bocha AI.
+    
+    Each record captures a search query and its results for later reference.
+    """
+    keyword = models.CharField(
+        max_length=500,
+        db_index=True,
+        help_text="搜索关键词"
+    )
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="search_results",
+        help_text="关联的报告"
+    )
+    results_count = models.IntegerField(
+        default=0,
+        help_text="搜索结果数量"
+    )
+    results_json = models.JSONField(
+        default=list,
+        help_text="原始搜索结果 JSON"
+    )
+    formatted_results = models.TextField(
+        blank=True,
+        help_text="格式化的搜索结果文本"
+    )
+    search_source = models.CharField(
+        max_length=50,
+        default="bocha",
+        help_text="搜索来源 (bocha, duckduckgo, etc.)"
+    )
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="搜索时间"
+    )
+
+    class Meta:
+        db_table = "search_results"
+        verbose_name = "搜索结果"
+        verbose_name_plural = "搜索结果"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Search: {self.keyword[:50]} ({self.results_count} results)"
