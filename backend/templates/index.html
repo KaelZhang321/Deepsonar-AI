@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}DeepSonar AI - AI Business Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="p-6">
+        <nav class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🔍</span>
+                <span class="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    DeepSonar AI
+                </span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a href="{% url 'login' %}" class="text-gray-300 hover:text-white transition">Login</a>
+                <a href="{% url 'register' %}" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition">
+                    Get Started
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <main class="flex-1 flex items-center justify-center px-6">
+        <div class="max-w-4xl mx-auto text-center">
+            <h1 class="text-5xl md:text-6xl font-bold mb-6">
+                <span class="bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                    AI-Powered Business Analysis
+                </span>
+            </h1>
+            <p class="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+                Transform your business insights with our AI agent team. 
+                Get comprehensive market research, competitor analysis, and strategic recommendations in minutes.
+            </p>
+            
+            <!-- Features -->
+            <div class="grid md:grid-cols-3 gap-6 mb-12">
+                <div class="glass rounded-xl p-6 glow">
+                    <div class="text-3xl mb-3">🔎</div>
+                    <h3 class="font-semibold mb-2">Market Researcher</h3>
+                    <p class="text-gray-400 text-sm">Gathers comprehensive market data and trends</p>
+                </div>
+                <div class="glass rounded-xl p-6 glow">
+                    <div class="text-3xl mb-3">📊</div>
+                    <h3 class="font-semibold mb-2">Business Analyst</h3>
+                    <p class="text-gray-400 text-sm">Creates detailed analysis and strategic reports</p>
+                </div>
+                <div class="glass rounded-xl p-6 glow">
+                    <div class="text-3xl mb-3">✅</div>
+                    <h3 class="font-semibold mb-2">Quality Supervisor</h3>
+                    <p class="text-gray-400 text-sm">Reviews and ensures report quality</p>
+                </div>
+            </div>
+
+            <a href="{% url 'register' %}" class="inline-block px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-xl text-lg font-semibold transition transform hover:scale-105">
+                Start Analyzing →
+            </a>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="p-6 text-center text-gray-500 text-sm">
+        <p>© 2024 DeepSonar AI. Powered by CrewAI & 火山引擎.</p>
+    </footer>
+</div>
+{% endblock %}
