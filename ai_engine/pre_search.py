@@ -14,7 +14,7 @@ from typing import Optional
 
 def pre_search(query: str, count: int = 20) -> dict:
     """
-    Perform a web search before crew execution.
+    Perform a robust AI search before crew execution using Bocha AI Search.
     
     Args:
         query: The search query
@@ -23,29 +23,23 @@ def pre_search(query: str, count: int = 20) -> dict:
     Returns:
         Dict with search_results (formatted string) and references (list)
     """
-    api_key = os.getenv("BOCHA_API_KEY", "sk-accd71cb3f8b48789e34040d18337912")
-    api_url = "https://api.bocha.cn/v1/web-search"
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "query": query,
-        "freshness": "noLimit",
-        "summary": True,
-        "count": count
-    }
-    
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-        response.raise_for_status()
+        from ai_engine.bocha_api import bocha_ai_search, parse_bocha_response
         
-        data = response.json()
-        web_pages = data.get("data", {}).get("webPages", {}).get("value", [])
+        # Use AI search which provides better context and direct answers
+        raw_response = bocha_ai_search(
+            query, 
+            count=count, 
+            answer=True,
+            stream=False
+        )
         
-        if not web_pages:
+        parsed = parse_bocha_response(raw_response)
+        
+        web_sources = parsed.get("web_sources", [])
+        ai_answer = parsed.get("answer", "")
+        
+        if not web_sources and not ai_answer:
             return {
                 "search_results": f"未找到与 '{query}' 相关的搜索结果。请基于您的专业知识进行分析。",
                 "references": [],
@@ -57,14 +51,21 @@ def pre_search(query: str, count: int = 20) -> dict:
         references = []
         raw_data = []
         
-        for i, page in enumerate(web_pages, 1):
+        # Add AI Answer as the first "source" of insight
+        if ai_answer:
+            results.append(
+                "【AI 智能综述】\n"
+                f"{ai_answer}\n"
+            )
+        
+        for i, page in enumerate(web_sources, 1):
             ref_id = f"[Ref-{i}]"
             title = page.get("name", "无标题")
             snippet = page.get("snippet", "")
             url = page.get("url", "")
             
             # Truncate snippet for context management
-            short_snippet = snippet[:300] + "..." if len(snippet) > 300 else snippet
+            short_snippet = snippet[:350] + "..." if len(snippet) > 350 else snippet
             
             results.append(
                 f"来源 {ref_id}\n"
@@ -91,6 +92,8 @@ def pre_search(query: str, count: int = 20) -> dict:
         }
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "search_results": f"搜索失败：{str(e)}。请基于您的专业知识进行分析。",
             "references": [],
