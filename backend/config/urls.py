@@ -21,11 +21,38 @@ api = NinjaAPI(
 )
 
 
-# Example endpoint - can be extended with more routes
+# Health check endpoint
 @api.get("/health")
 def health_check(request) -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+# Trial application endpoint
+from ninja import Schema
+from apps.users.trial_models import TrialApplication
+
+class TrialApplicationSchema(Schema):
+    name: str
+    email: str
+    organization: str
+    title: str = ""
+    useCase: str = "market_analysis"
+    message: str = ""
+
+@api.post("/trial-application")
+def submit_trial_application(request, data: TrialApplicationSchema):
+    """Submit a trial application from the portal."""
+    application = TrialApplication.objects.create(
+        name=data.name,
+        email=data.email,
+        organization=data.organization,
+        title=data.title,
+        use_case=data.useCase,
+        message=data.message,
+    )
+    return {"success": True, "id": application.id}
+
 
 
 urlpatterns = [
@@ -36,7 +63,6 @@ urlpatterns = [
     path("api/", api.urls),
     
     # Auth & Frontend
-    path("", home, name="home"),
     path("login/", login_view, name="login"),
     path("register/", register_view, name="register"),
     path("logout/", logout_view, name="logout"),
@@ -47,6 +73,16 @@ urlpatterns = [
     path("reports/<int:report_id>/export/md/", report_export_markdown, name="report_export_md"),
     path("reports/<int:report_id>/export/word/", report_export_word, name="report_export_word"),
     path("reports/<int:report_id>/export/pdf/", report_export_pdf, name="report_export_pdf"),
+    
+    # Catch-all for React frontend routes (must be last)
+    path("", home, name="home"),
 ]
+
+# Add catch-all pattern for React Router paths
+from django.urls import re_path
+urlpatterns += [
+    re_path(r'^(?!admin|api|login|register|logout|reports|static).*$', home, name="frontend_catchall"),
+]
+
 
 

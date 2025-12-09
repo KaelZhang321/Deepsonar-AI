@@ -1,0 +1,30 @@
+/* DeepSonar Custom Chainlit Styles */
+
+/* Hide Chainlit logo on login page and replace with DeepSonar */
+.MuiBox-root img[alt*="logo"],
+.MuiBox-root img[alt*="chainlit"],
+.MuiBox-root img[alt*="Chainlit"],
+header img[alt*="logo"],
+header img[alt*="chainlit"] {
+    content: url('/public/logo_light.png') !important;
+}
+
+/* Alternative: Hide the original logo container and add custom */
+div[class*="login"] img,
+div[class*="Login"] img,
+.MuiGrid-container img[alt="logo"] {
+    content: url('/public/logo_light.png') !important;
+    max-height: 40px !important;
+    width: auto !important;
+}
+
+/* Force replace any image starting with chainlit in src */
+img[src*="chainlit"] {
+    visibility: hidden;
+}
+
+/* Add DeepSonar branding */
+img[src*="chainlit"]::before {
+    content: url('/public/logo_light.png');
+    visibility: visible;
+}

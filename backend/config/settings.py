@@ -98,8 +98,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+LANGUAGE_CODE = "zh-hans"
+TIME_ZONE = "Asia/Shanghai"
 USE_I18N = True
 USE_TZ = True
 
@@ -115,5 +115,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Authentication settings
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "http://localhost:8001"
+
+# Email settings
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() == "true"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "DeepSonar AI <noreply@deepsonar.ai>")
+EMAIL_TIMEOUT = 30
+
 
 
