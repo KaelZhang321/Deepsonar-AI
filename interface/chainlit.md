@@ -1,14 +1,18 @@
-# Welcome to Chainlit! 🚀🤖
+# 🔍 Welcome to DeepSonar AI
 
-Hi there, Developer! 👋 We're excited to have you on board. Chainlit is a powerful tool designed to help you prototype, debug and share applications built on top of LLMs.
+DeepSonar is your AI-powered business analysis platform.
 
-## Useful Links 🔗
+## Features
 
-- **Documentation:** Get started with our comprehensive [Chainlit Documentation](https://docs.chainlit.io) 📚
-- **Discord Community:** Join our friendly [Chainlit Discord](https://discord.gg/k73SQ3FyUh) to ask questions, share your projects, and connect with other developers! 💬
+- **Market Research** - Automated market data gathering and analysis
+- **Business Analysis** - Comprehensive SWOT analysis and strategic insights
+- **Quality Assurance** - AI-reviewed professional reports
+- **Export to Markdown** - Download reports for offline use
 
-We can't wait to see what you create with Chainlit! Happy coding! 💻😊
+## Getting Started
 
-## Welcome screen
+1. Enter a topic or keyword in the chat
+2. Our AI agents will research and analyze the topic
+3. Receive a professional business analysis report
 
-To modify the welcome screen, edit the `chainlit.md` file at the root of your project. If you do not want a welcome screen, just leave this file empty.
+**Enter a topic to get started!**

@@ -7,6 +7,7 @@ This module provides the chat interface where users can:
 3. Watch the AI agent team work in real-time
 4. Receive and view the final business analysis report
 5. Have all chat history saved to the Django database
+6. View chat history in the sidebar
 
 IMPORTANT: This file must initialize Django before importing Django models.
 """
@@ -44,6 +45,7 @@ from asgiref.sync import sync_to_async
 # =============================================================================
 
 import chainlit as cl
+import chainlit.data
 from dotenv import load_dotenv
 
 # Add the project root to path for ai_engine imports
@@ -51,9 +53,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from ai_engine.crew import BusinessAnalysisCrew
+from data_layer import DjangoDataLayer
 
 # Load environment variables
 load_dotenv()
+
+# =============================================================================
+# Initialize the data layer for sidebar chat history
+# =============================================================================
+# Set the data layer directly for Chainlit 2.9.3
+chainlit.data._data_layer = DjangoDataLayer()
 
 
 # =============================================================================
@@ -123,6 +132,73 @@ def get_session_messages(session_id: int) -> list[dict]:
     return [{"sender": m.sender, "content": m.content} for m in messages]
 
 
+@sync_to_async
+def get_user_chat_sessions(user) -> list[dict]:
+    """Get all chat sessions for a user."""
+    if user is None:
+        return []
+    sessions = ChatSession.objects.filter(user=user).order_by('-created_at')[:10]
+    return [
+        {
+            "id": s.id,
+            "title": s.title,
+            "created_at": s.created_at.strftime("%Y-%m-%d %H:%M"),
+            "message_count": s.messages.count()
+        }
+        for s in sessions
+    ]
+
+
+@sync_to_async
+def get_session_history(session_id: int) -> list[dict]:
+    """Get full message history for a session."""
+    try:
+        session = ChatSession.objects.get(id=session_id)
+        messages = session.messages.order_by('timestamp')
+        return [
+            {
+                "sender": m.sender,
+                "content": m.content[:500] + "..." if len(m.content) > 500 else m.content,
+                "timestamp": m.timestamp.strftime("%H:%M")
+            }
+            for m in messages
+        ]
+    except ChatSession.DoesNotExist:
+        return []
+
+
+@sync_to_async
+def get_user_reports(user) -> list[dict]:
+    """Get completed reports for a user."""
+    if user is None:
+        return []
+    reports = Report.objects.filter(user=user, status=Report.Status.COMPLETED).order_by('-created_at')[:10]
+    return [
+        {
+            "id": r.id,
+            "query": r.query[:50],
+            "created_at": r.created_at.strftime("%Y-%m-%d %H:%M"),
+        }
+        for r in reports
+    ]
+
+
+@sync_to_async
+def update_session_title(session: ChatSession, title: str) -> None:
+    """Update the title of a chat session."""
+    session.title = title[:100]
+    session.save()
+
+
+@sync_to_async
+def get_chat_session_by_id(session_id: int) -> Optional[ChatSession]:
+    """Get a chat session by ID."""
+    try:
+        return ChatSession.objects.get(id=session_id)
+    except ChatSession.DoesNotExist:
+        return None
+
+
 # =============================================================================
 # Chainlit Authentication
 # =============================================================================
@@ -174,14 +250,20 @@ async def on_chat_start() -> None:
     cl.user_session.set("crew", crew)
     cl.user_session.set("django_user", django_user)
     
-    # Create a new chat session in the database
-    chat_session = await create_chat_session(
-        user=django_user,
-        title=f"Chat Session - {username}"
-    )
-    cl.user_session.set("chat_session", chat_session)
+    # Note: ChatSession is created lazily on first message to avoid empty entries
+    cl.user_session.set("chat_session", None)  # Will be created on first message
+    cl.user_session.set("session_initialized", False)
 
-    # Send welcome message
+    # Create action button for history
+    actions = [
+        cl.Action(
+            name="view_history",
+            payload={"action": "history"},
+            label="📜 View Chat History",
+        )
+    ]
+
+    # Send welcome message with action buttons
     welcome_msg = f"""# 🔍 AI Business Analysis Platform
 
 Welcome, **{username}**! I'm your AI-powered business analysis assistant.
@@ -194,9 +276,42 @@ Welcome, **{username}**! I'm your AI-powered business analysis assistant.
    - ✅ **Quality Supervisor** - Reviews and ensures quality
 3. Receive a professional business analysis report
 
+📊 **[View Your Reports](http://localhost:8000/reports/)** - Export as Markdown
+
 **Enter a topic to get started!**
 """
-    await cl.Message(content=welcome_msg).send()
+    await cl.Message(content=welcome_msg, actions=actions).send()
+
+
+@cl.action_callback("view_history")
+async def on_action_view_history(action: cl.Action):
+    """Handle the view history action button."""
+    django_user = cl.user_session.get("django_user")
+    
+    if django_user is None:
+        await cl.Message(content="⚠️ Please log in to view your chat history.").send()
+        return
+    
+    sessions = await get_user_chat_sessions(django_user)
+    
+    if not sessions:
+        await cl.Message(content="📭 No chat history found. Start a conversation to create history!").send()
+        return
+    
+    # Format history as a nice list
+    history_text = "# 📜 Your Chat History\n\n"
+    history_text += "| # | Session | Date | Messages |\n"
+    history_text += "|---|---------|------|----------|\n"
+    
+    for i, session in enumerate(sessions, 1):
+        history_text += f"| {i} | {session['title'][:30]} | {session['created_at']} | {session['message_count']} |\n"
+    
+    history_text += "\n*Showing last 10 sessions*"
+    
+    await cl.Message(content=history_text).send()
+
+
+# Note: view_reports button removed - reports are now available at http://localhost:8000/reports/
 
 
 @cl.on_message
@@ -204,7 +319,8 @@ async def on_message(message: cl.Message) -> None:
     """
     Handler for incoming user messages.
 
-    Saves the message to database, triggers the CrewAI analysis, and streams results.
+    Saves the message to database, triggers the CrewAI analysis, and streams results
+    with real-time progress updates using Chainlit Steps.
     """
     topic = message.content.strip()
 
@@ -215,6 +331,21 @@ async def on_message(message: cl.Message) -> None:
     # Get session info
     chat_session: ChatSession = cl.user_session.get("chat_session")
     django_user = cl.user_session.get("django_user")
+    session_initialized = cl.user_session.get("session_initialized", False)
+    
+    # Create chat session on first message (lazy initialization)
+    if not session_initialized:
+        chat_session = await create_chat_session(
+            user=django_user,
+            title=topic[:50]  # Use first message as title
+        )
+        cl.user_session.set("chat_session", chat_session)
+        cl.user_session.set("session_initialized", True)
+        # Set thread_id for Chainlit data layer
+        cl.user_session.set("thread_id", str(chat_session.id))
+    elif chat_session and chat_session.title == "New Chat":
+        # Update session title with the topic (for sidebar display)
+        await update_session_title(chat_session, topic[:50])
     
     # Save user message to database
     await save_chat_message(
@@ -227,36 +358,62 @@ async def on_message(message: cl.Message) -> None:
     report = await create_report(topic, django_user)
 
     # Send initial status message
-    await cl.Message(
-        content=f"🚀 **Starting analysis for:** {topic}\n\nThis may take a few minutes..."
-    ).send()
+    init_msg = cl.Message(content=f"🚀 **Starting analysis for:** {topic}")
+    await init_msg.send()
 
     try:
         # Get the crew from session
         crew: BusinessAnalysisCrew = cl.user_session.get("crew")
 
-        # Send progress updates
-        await cl.Message(
-            content="🔎 **Market Researcher** is gathering data..."
-        ).send()
-
-        # Run the crew (this is the main AI processing)
-        result = await crew.run_async(topic)
-        
-        # Ensure result is a string
-        if result is None:
-            result = "No output generated. Please try again."
-        elif hasattr(result, 'raw'):
-            result = str(result.raw)
-        elif hasattr(result, 'output'):
-            result = str(result.output)
-        else:
-            result = str(result)
-
-        # Update progress
-        await cl.Message(
-            content="✅ **Quality Supervisor** has approved the final report!"
-        ).send()
+        # Create parent step for the entire analysis process
+        async with cl.Step(name="📊 Business Analysis Pipeline", type="run") as pipeline_step:
+            pipeline_step.output = "Initializing AI agent team..."
+            
+            # Step 1: Market Research
+            async with cl.Step(name="🔎 Market Researcher", type="tool") as research_step:
+                research_step.input = f"Researching topic: {topic}"
+                research_step.output = "Gathering market data, trends, and competitor information..."
+                
+                # Simulate progress update
+                await cl.sleep(0.5)
+                research_step.output = "• Analyzing market size and growth trends\n• Identifying key players\n• Researching recent developments"
+            
+            # Step 2: Business Analysis
+            async with cl.Step(name="📈 Business Analyst", type="tool") as analyst_step:
+                analyst_step.input = "Processing research data"
+                analyst_step.output = "Creating comprehensive business analysis report..."
+                
+                await cl.sleep(0.5)
+                analyst_step.output = "• Synthesizing market research\n• Performing SWOT analysis\n• Developing strategic recommendations"
+            
+            # Step 3: Quality Review
+            async with cl.Step(name="✅ Quality Supervisor", type="tool") as review_step:
+                review_step.input = "Reviewing analysis report"
+                review_step.output = "Ensuring report quality and completeness..."
+            
+            # Step 4: Execute the crew (this is the main AI processing)
+            async with cl.Step(name="🤖 AI Processing", type="llm") as llm_step:
+                llm_step.input = f"Topic: {topic}"
+                llm_step.output = "Processing with AI agents..."
+                
+                # Run the actual crew
+                result = await crew.run_async(topic)
+                
+                # Ensure result is a string
+                if result is None:
+                    result = "No output generated. Please try again."
+                elif hasattr(result, 'raw'):
+                    result = str(result.raw)
+                elif hasattr(result, 'output'):
+                    result = str(result.output)
+                else:
+                    result = str(result)
+                
+                # Update step with completion
+                llm_step.output = "✅ Analysis completed successfully!"
+            
+            # Update pipeline step
+            pipeline_step.output = "✅ All agents completed their tasks!"
 
         # Save the result to the database
         await mark_report_completed(report, result)
@@ -312,12 +469,57 @@ async def on_stop() -> None:
     await cl.Message(content="⏹️ Analysis stopped.").send()
 
 
-# Note: on_chat_resume is disabled due to Chainlit version compatibility
-# @cl.on_chat_resume
-# async def on_chat_resume(thread) -> None:
-#     """Handler for resuming a previous chat session."""
-#     crew = BusinessAnalysisCrew(verbose=True)
-#     cl.user_session.set("crew", crew)
+@cl.on_chat_resume
+async def on_chat_resume(thread: dict) -> None:
+    """
+    Handler for resuming a previous chat session from the sidebar.
+    
+    Loads the session and displays previous messages.
+    """
+    thread_id = thread.get("id")
+    if not thread_id:
+        return
+    
+    try:
+        # Get the chat session from database
+        session_id = int(thread_id)
+        chat_session = await get_chat_session_by_id(session_id)
+        
+        if not chat_session:
+            await cl.Message(content="⚠️ Session not found.").send()
+            return
+        
+        # Set up the session
+        cl.user_session.set("chat_session", chat_session)
+        cl.user_session.set("thread_id", thread_id)
+        
+        # Initialize the crew
+        crew = BusinessAnalysisCrew(verbose=True)
+        cl.user_session.set("crew", crew)
+        
+        # Get user info
+        user_info = cl.user_session.get("user")
+        if user_info:
+            django_user = await get_user_by_username(user_info.identifier)
+            cl.user_session.set("django_user", django_user)
+        
+        # Load and display previous messages
+        messages = await get_session_history(session_id)
+        
+        if messages:
+            history_text = f"**📜 Previous conversation: {chat_session.title}**\n\n"
+            for msg in messages[-5:]:  # Show last 5 messages
+                sender_icon = "👤" if msg["sender"] == "user" else "🤖"
+                content_preview = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
+                history_text += f"{sender_icon} **{msg['sender'].upper()}** ({msg['timestamp']}):\n{content_preview}\n\n"
+            
+            history_text += "---\n*Continue the conversation below...*"
+            await cl.Message(content=history_text).send()
+        else:
+            await cl.Message(content=f"📄 Resumed session: **{chat_session.title}**\n\nEnter a new topic to analyze.").send()
+    
+    except (ValueError, Exception) as e:
+        await cl.Message(content=f"⚠️ Error loading session: {str(e)}").send()
 
 
 # =============================================================================
