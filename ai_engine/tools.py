@@ -152,34 +152,37 @@ class WebCrawlerTool(BaseTool):
 
 class BochaWebSearchTool(BaseTool):
     """
-    Tool for searching the web using Bocha AI Web Search API.
+    Map-Reduce 智能搜索工具 - 使用博查AI搜索并自动总结每条结果。
     
-    博查AI网页搜索工具 - 支持实时网页搜索并返回带引用的结果。
-    Results include citation numbers for academic-style referencing in reports.
+    实现 Map-Reduce 模式：
+    1. Map: 对每条搜索结果调用 LLM 进行独立总结
+    2. Reduce: 聚合所有总结返回给 Agent
+    
+    这样可以极大减少 Token 消耗，防止上下文溢出。
     """
 
     name: str = "Bocha Web Search"
     description: str = (
-        "使用博查AI进行网页搜索，获取最新的网页信息。"
-        "返回结果包含标题、URL、摘要和引用编号，可用于报告中的学术引用。"
+        "使用博查AI进行网页搜索，自动总结每条结果。"
+        "返回精简的摘要和引用编号，可用于报告中的学术引用。"
         "输入应为搜索关键词字符串。"
     )
 
     def _run(self, query: str) -> str:
         """
-        Execute a web search using Bocha AI API.
+        Execute a web search with Map-Reduce summarization.
 
         Args:
             query: The search query string
 
         Returns:
-            Search results with citation numbers as a formatted string
+            Summarized search results with citation numbers
         """
         import os
         import requests
         
         api_key = os.getenv("BOCHA_API_KEY", "sk-accd71cb3f8b48789e34040d18337912")
-        api_url = "https://api.bocha.cn/v1/web-search"  # 官方正确端点
+        api_url = "https://api.bocha.cn/v1/web-search"
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -188,9 +191,9 @@ class BochaWebSearchTool(BaseTool):
         
         payload = {
             "query": query,
-            "freshness": "noLimit",  # Can be: oneDay, oneWeek, oneMonth, oneYear, noLimit
+            "freshness": "noLimit",
             "summary": True,
-            "count": 5  # Reduced to prevent context overflow
+            "count": 5  # Reduced count since we're summarizing each
         }
         
         try:
@@ -198,31 +201,68 @@ class BochaWebSearchTool(BaseTool):
             response.raise_for_status()
             
             data = response.json()
-            
-            # Extract web pages from response
             web_pages = data.get("data", {}).get("webPages", {}).get("value", [])
             
             if not web_pages:
                 return f"未找到与 '{query}' 相关的搜索结果。"
             
-            # Format results concisely with citation numbers
-            results = []
+            # === Map-Reduce Pattern ===
+            aggregated_results = []
+            results_for_db = []
+            reference_list = []
             
             for i, page in enumerate(web_pages, 1):
-                title = page.get("name", "无标题")[:50]  # Truncate title
-                snippet = page.get("snippet", "")[:150]  # Truncate snippet
+                ref_id = f"[Ref-{i}]"
+                title = page.get("name", "无标题")
+                raw_snippet = page.get("snippet", "")
                 site_name = page.get("siteName", "")
                 url = page.get("url", "")
                 
-                # Compact format
-                result = f"[{i}] {title} - {site_name}\n{snippet}\n来源: {url}"
-                results.append(result)
+                # === MAP PHASE: Summarize each result with LLM ===
+                summary = self._summarize_snippet(raw_snippet, title)
+                
+                # Store for database (full data)
+                results_for_db.append({
+                    "ref_id": ref_id,
+                    "index": i,
+                    "title": title,
+                    "snippet": raw_snippet,
+                    "summary": summary,
+                    "site_name": site_name,
+                    "url": url
+                })
+                
+                # Reference entry
+                reference_list.append(f"{ref_id} {title}, 链接: {url}")
+                
+                # Compact format for LLM (summarized)
+                entry = (
+                    f"来源 ID: {ref_id}\n"
+                    f"标题: {title}\n"
+                    f"链接: {url}\n"
+                    f"关键事实: {summary}"
+                )
+                aggregated_results.append(entry)
             
-            # Simple output format
-            output = f"搜索「{query}」找到 {len(web_pages)} 条结果:\n\n"
-            output += "\n\n".join(results)
+            # === REDUCE PHASE: Aggregate all summaries ===
+            output_for_llm = f"=== 搜索「{query}」共 {len(web_pages)} 条结果（已自动总结）===\n\n"
+            output_for_llm += "【提示】使用 [Ref-N] 引用来源，报告结尾附参考文献。\n\n"
+            output_for_llm += "\n\n----------------\n\n".join(aggregated_results)
+            output_for_llm += "\n\n----------------\n\n"
+            output_for_llm += "【参考文献模板】\n"
+            for ref in reference_list:
+                output_for_llm += f"  - {ref}\n"
             
-            return output
+            # Save to database
+            try:
+                full_output = f"## 搜索「{query}」找到 {len(web_pages)} 条结果\n\n"
+                for item in results_for_db:
+                    full_output += f"{item['ref_id']}\n标题: {item['title']}\n摘要: {item['snippet']}\n链接: {item['url']}\n\n---\n\n"
+                self._save_search_result(query, web_pages, full_output, results_for_db)
+            except Exception as save_error:
+                print(f"Warning: Failed to save search result: {save_error}")
+            
+            return output_for_llm
             
         except requests.exceptions.Timeout:
             return f"搜索超时，请稍后重试。关键词：{query}"
@@ -230,6 +270,82 @@ class BochaWebSearchTool(BaseTool):
             return f"搜索请求失败：{str(e)}。请检查网络连接。"
         except Exception as e:
             return f"搜索出错：{str(e)}。请使用已有知识继续分析。"
+    
+    def _summarize_snippet(self, snippet: str, title: str) -> str:
+        """
+        Map Phase: Summarize a single snippet using LLM.
+        
+        Args:
+            snippet: The raw text to summarize
+            title: The title for context
+            
+        Returns:
+            A concise 2-sentence summary
+        """
+        if not snippet or len(snippet) < 50:
+            return snippet if snippet else "无详细内容"
+        
+        try:
+            import os
+            from crewai import LLM
+            
+            # Use the same ARK LLM for summarization
+            summarizer = LLM(
+                model=f"openai/{os.environ.get('ARK_MODEL_ENDPOINT', 'ep-20250103154042-lzccq')}",
+                api_key=os.environ.get("ARK_API_KEY"),
+                base_url=os.environ.get("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"),
+                max_tokens=150  # Keep summaries short
+            )
+            
+            # Micro-prompt for fast summarization
+            micro_prompt = (
+                f"请用2句话总结以下内容的关键事实（保持客观，不要废话）：\n"
+                f"标题：{title}\n"
+                f"内容：{snippet[:500]}"
+            )
+            
+            # Call LLM for summarization
+            result = summarizer.call(messages=[{"role": "user", "content": micro_prompt}])
+            
+            if result and len(result) > 10:
+                return result.strip()[:200]  # Limit summary length
+            else:
+                # Fallback to truncation if LLM fails
+                return snippet[:150] + "..." if len(snippet) > 150 else snippet
+                
+        except Exception as e:
+            # Fallback: simple truncation if summarization fails
+            print(f"Summarization fallback: {e}")
+            return snippet[:150] + "..." if len(snippet) > 150 else snippet
+    
+    def _save_search_result(self, keyword: str, web_pages: list, formatted: str, results_json: list):
+        """Save search result to database."""
+        try:
+            import os
+            import sys
+            from pathlib import Path
+            
+            backend_dir = Path(__file__).resolve().parent.parent / "backend"
+            if str(backend_dir) not in sys.path:
+                sys.path.insert(0, str(backend_dir))
+            
+            os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+            
+            import django
+            if not django.apps.apps.ready:
+                django.setup()
+            
+            from apps.reports.models import SearchResult
+            
+            SearchResult.objects.create(
+                keyword=keyword,
+                results_count=len(web_pages),
+                results_json=results_json,
+                formatted_results=formatted,
+                search_source="bocha"
+            )
+        except Exception as e:
+            print(f"Database save error: {e}")
 
 
 # Instantiate tools for easy import
