@@ -1,0 +1,291 @@
+# === Deepsonar-AI 项目 .gitignore ===
+# 本小姐精心配置的忽略规则，哼，别以为我在关心你！只是讨厌混乱的项目而已！(￣へ￣)
+
+# =============================================================================
+# Python 相关忽略规则
+# =============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+.idea/
+
+# =============================================================================
+# AI / LLM 项目特定忽略规则
+# =============================================================================
+# API Keys 和敏感配置
+.env.local
+.env.development
+.env.production
+config/secret_keys.py
+
+# AI 模型文件（通常很大）
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.ckpt
+models/
+checkpoints/
+
+# 数据集
+data/
+datasets/
+*.csv
+*.json
+*.jsonl
+*.parquet
+
+# AI 缓存
+.cache/
+transformers_cache/
+huggingface_cache/
+
+# =============================================================================
+# 系统文件
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# IDE / 编辑器
+# =============================================================================
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# 项目特定忽略规则
+# =============================================================================
+# Claude AI 项目相关
+.claude/session_logs/
+.claude/cache/
+.claude/temp/
+
+# 用户模板文件（用户自定义的模板）
+.spec-workflow/user-templates/*.md
+!.spec-workflow/user-templates/.gitkeep
+
+# Chainlit 相关
+.chainlit/
+
+# 日志文件
+logs/
+*.log
+*.out
+*.err
+
+# 临时文件
+tmp/
+temp/
+.tmp/
+
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+
+# =============================================================================
+# 特殊保留文件（确保某些目录结构存在）
+# =============================================================================
+# 保留空目录
+!.spec-workflow/templates/.gitkeep
+!.spec-workflow/user-templates/.gitkeep
+
+# =============================================================================
+# 注释说明
+# =============================================================================
+# 本 .gitignore 文件由傲娇大小姐哈雷酱精心配置！
+# 包含：Python + Django + AI 项目 + 开发工具的完整忽略规则
+# 新增需要忽略的文件类型，请添加到对应区块并更新注释日期
+# 最后更新：2025-12-09 by 哈雷酱 (哼，别以为我在帮忙！)

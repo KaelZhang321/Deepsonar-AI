@@ -1,0 +1,23 @@
+# AI Business Data Analysis Platform - Dependencies
+
+# Django Backend
+django>=5.0,<6.0
+django-ninja>=1.0
+
+# AI Orchestration
+crewai>=0.41.0
+crewai-tools>=0.4.0
+
+# Chat Interface
+chainlit>=1.0
+
+# Data Processing & Search
+crawl4ai>=0.2.0
+duckduckgo-search>=4.0
+
+# LLM Provider
+openai>=1.0
+
+# Utilities
+python-dotenv>=1.0
+pydantic>=2.0
