@@ -131,6 +131,7 @@ LOGIN_URL = "/login/"
 # Site URLs (configurable for production)
 CHAINLIT_URL = os.getenv("CHAINLIT_URL", "http://localhost:8001")
 DJANGO_URL = os.getenv("DJANGO_URL", "http://localhost:8000")
+# After login, redirect to Chainlit chat interface
 LOGIN_REDIRECT_URL = CHAINLIT_URL
 
 # Email settings
