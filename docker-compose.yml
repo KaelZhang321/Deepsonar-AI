@@ -16,6 +16,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - static_files:/app/backend/staticfiles:ro
+      - ./portal/dist:/app/portal/dist:ro
       # Uncomment for SSL certificates
       # - ./ssl:/etc/nginx/ssl:ro
     depends_on:

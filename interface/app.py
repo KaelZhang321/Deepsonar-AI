@@ -174,6 +174,32 @@ def create_report(query: str, user: Optional[User] = None) -> Report:
 
 
 @sync_to_async
+def check_user_can_generate(user: Optional[User]) -> tuple[bool, int, int, bool]:
+    """
+    Check if user can generate a report based on membership and monthly limits.
+    
+    Returns:
+        (can_generate, remaining_reports, monthly_limit, is_expired)
+    """
+    if user is None:
+        return False, 0, 0, True
+    
+    is_active = user.is_membership_active()
+    can_gen = user.can_generate_report()
+    remaining = user.get_remaining_reports()
+    limit = user.get_monthly_report_limit()
+    is_expired = not is_active
+    return can_gen, remaining, limit, is_expired
+
+
+@sync_to_async
+def increment_user_report_count(user: Optional[User]) -> None:
+    """Increment the user's monthly report count after successful generation."""
+    if user is not None:
+        user.increment_report_count()
+
+
+@sync_to_async
 def mark_report_completed(report: Report, output: str) -> None:
     """Mark a report as completed with the given output."""
     report.mark_completed(output)
@@ -444,6 +470,44 @@ async def on_message(message: cl.Message) -> None:
         content=topic
     )
 
+    # Check if user can generate a report (membership + monthly limit check)
+    if django_user:
+        can_generate, remaining, monthly_limit, is_expired = await check_user_can_generate(django_user)
+        if not can_generate:
+            if is_expired:
+                # Membership expired
+                expires_str = django_user.membership_expires_at.strftime('%Y年%m月%d日') if django_user.membership_expires_at else "未知日期"
+                expired_msg = f"""⚠️ **会员已过期**
+
+您的 **{django_user.get_membership_level_display()}** 会员已于 **{expires_str}** 到期。
+
+🔒 会员过期后无法生成新报告，但您仍可以：
+- 查看历史报告
+- 导出已生成的报告
+
+🚀 **续费或升级会员** 即可继续使用：
+- 入门版 (Starter)：每月 30 份报告
+- 专业版 (Pro)：每月 100 份报告
+- 企业版 (Enterprise)：每月 600 份报告
+"""
+                await cl.Message(content=expired_msg).send()
+            else:
+                # Quota exceeded
+                limit_msg = f"""⚠️ **本月报告生成次数已达上限**
+
+您的会员等级为 **{django_user.get_membership_level_display()}**，每月最多生成 **{monthly_limit}** 份报告。
+
+📅 本月剩余次数：**{remaining}** 份
+⏰ 次数将于下月 1 日重置
+
+🚀 **升级会员** 可获得更多每月报告次数：
+- 入门版 (Starter)：每月 30 份
+- 专业版 (Pro)：每月 100 份
+- 企业版 (Enterprise)：每月 600 份
+"""
+                await cl.Message(content=limit_msg).send()
+            return
+
     # Create a Report record in the database
     report = await create_report(topic, django_user)
 
@@ -624,6 +688,9 @@ async def on_message(message: cl.Message) -> None:
         # Save the result to the database (filter out review/audit opinions)
         filtered_result = filter_review_content(result)
         await mark_report_completed(report, filtered_result)
+        
+        # Increment user's daily report count
+        await increment_user_report_count(django_user)
         
         # Save AI response to chat history
         await save_chat_message(
