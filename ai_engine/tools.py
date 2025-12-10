@@ -399,15 +399,231 @@ class BochaAISearchTool(BaseTool):
                 url = source.get("url", "")
                 snippet = source.get("snippet", "")
                 output += f"{i}. {name} ({url})\n   摘要: {snippet[:200]}...\n"
-                
             return output
             
         except Exception as e:
             return f"AI Search failed: {str(e)}"
 
 
+class DeepReadTool(BaseTool):
+    """
+    Deep Web Reader Tool - Read full web page content and summarize it.
+    
+    Priority order:
+    1. Jina AI Reader (free, no key required) - DEFAULT
+    2. Firecrawl (if API key set)
+    3. Basic BeautifulSoup crawler (fallback)
+    """
+    name: str = "Deep Web Reader"
+    description: str = (
+        "深度阅读指定 URL 的完整网页内容，提取并总结核心信息。"
+        "适用于需要深入了解某个具体网页内容的场景。"
+        "输入应为完整的 URL 地址。"
+    )
+
+    def _run(self, url: str) -> str:
+        """
+        Read and summarize web page content.
+
+        Args:
+            url: The URL to read
+
+        Returns:
+            Summarized content from the web page
+        """
+        import os
+        
+        crawl_method = "other"
+        raw_content = ""
+        summary = ""
+        success = False
+        error_msg = ""
+        
+        # =====================
+        # Method 1: Jina AI Reader (FREE, Default)
+        # =====================
+        try:
+            content = self._jina_read(url)
+            if content and len(content) > 100:
+                raw_content = content
+                crawl_method = "jina"
+                summary = self._summarize_content(url, content)
+                success = True
+                self._save_to_db(url, raw_content, summary, crawl_method, success)
+                return summary
+        except Exception as e:
+            print(f"Jina Reader error: {e}")
+            error_msg = str(e)
+        
+        # =====================
+        # Method 2: Firecrawl (if API key available)
+        # =====================
+        firecrawl_key = os.getenv("FIRECRAWL_API_KEY")
+        
+        if firecrawl_key:
+            try:
+                from firecrawl import FirecrawlApp
+                app = FirecrawlApp(api_key=firecrawl_key)
+                
+                scrape_result = app.scrape_url(url, params={'formats': ['markdown']})
+                content = scrape_result.get('markdown', '')
+                
+                if content:
+                    raw_content = content
+                    crawl_method = "firecrawl"
+                    summary = self._summarize_content(url, content)
+                    success = True
+                    self._save_to_db(url, raw_content, summary, crawl_method, success)
+                    return summary
+                    
+            except ImportError:
+                pass
+            except Exception as e:
+                print(f"Firecrawl error: {e}")
+                error_msg = str(e)
+        
+        # =====================
+        # Method 3: Basic BeautifulSoup crawler (Fallback)
+        # =====================
+        try:
+            content = self._basic_crawl(url)
+            if content:
+                raw_content = content
+                crawl_method = "beautifulsoup"
+                summary = self._summarize_content(url, content)
+                success = True
+                self._save_to_db(url, raw_content, summary, crawl_method, success)
+                return summary
+            
+            # Save failure
+            self._save_to_db(url, "", "", crawl_method, False, "No content returned")
+            return f"Failed to read content from {url}"
+            
+        except Exception as e:
+            self._save_to_db(url, "", "", crawl_method, False, str(e))
+            return f"Failed to read {url}: {str(e)}"
+
+    def _save_to_db(self, url: str, raw_content: str, summary: str, 
+                    method: str, success: bool, error_msg: str = ""):
+        """Save crawl result to database."""
+        try:
+            import sys
+            import os
+            from pathlib import Path
+            
+            backend_dir = Path(__file__).resolve().parent.parent / "backend"
+            if str(backend_dir) not in sys.path:
+                sys.path.insert(0, str(backend_dir))
+            
+            os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+            
+            import django
+            if not django.apps.apps.ready:
+                django.setup()
+            
+            from apps.reports.models import CrawledContent
+            
+            CrawledContent.objects.create(
+                url=url[:2000],  # Respect max_length
+                raw_content=raw_content[:50000] if raw_content else "",  # Limit size
+                summary=summary,
+                content_length=len(raw_content) if raw_content else 0,
+                crawl_method=method,
+                success=success,
+                error_message=error_msg
+            )
+        except Exception as e:
+            print(f"Database save error: {e}")
+
+    def _jina_read(self, url: str) -> str:
+        """
+        Use Jina AI Reader (free) to convert URL to Markdown.
+        Simply prefix the URL with https://r.jina.ai/
+        """
+        import requests
+        
+        jina_url = f"https://r.jina.ai/{url}"
+        
+        headers = {
+            "Accept": "text/markdown",
+            "User-Agent": "Mozilla/5.0 (compatible; DeepSonar/1.0)"
+        }
+        
+        response = requests.get(jina_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        return response.text
+
+    def _basic_crawl(self, url: str) -> str:
+        """Basic fallback crawler using requests and BeautifulSoup."""
+        import requests
+        from bs4 import BeautifulSoup
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Remove script and style elements
+        for script in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            script.decompose()
+        
+        # Get text
+        text = soup.get_text(separator="\n", strip=True)
+        
+        # Clean up whitespace
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return "\n".join(lines[:200])  # Limit to first 200 lines
+
+    def _summarize_content(self, url: str, content: str) -> str:
+        """Summarize long content using LLM."""
+        import os
+        from litellm import completion
+        
+        # If content is short, return as-is
+        if len(content) < 1500:
+            return f"【来源: {url}】\n\n{content}"
+        
+        # Truncate for summarization (context limit protection)
+        truncated = content[:8000]
+        
+        try:
+            summary_prompt = f"""
+请将以下网页内容总结为 500 字以内的精华摘要，保留关键数据、观点和结论：
+
+---
+{truncated}
+---
+
+要求：
+1. 保留具体数字和数据
+2. 保留关键人名、公司名
+3. 提炼核心观点和结论
+4. 使用简洁的要点形式
+"""
+            
+            response = completion(
+                model=os.getenv("ARK_MODEL_ENDPOINT", "openai/ep-20250603140551-tp9lt"),
+                messages=[{"role": "user", "content": summary_prompt}],
+                api_key=os.getenv("ARK_API_KEY"),
+                base_url=os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"),
+                max_tokens=800
+            )
+            
+            summary = response.choices[0].message.content.strip()
+            return f"【来源: {url}】\n\n{summary}"
+            
+        except Exception as e:
+            # If summarization fails, return truncated content
+            return f"【来源: {url}】\n\n{truncated[:1500]}..."
+
+
 # Instantiate tools for easy import
 search_tool = DuckDuckGoSearchTool()
 crawler_tool = WebCrawlerTool()
 bocha_search_tool = BochaWebSearchTool()
-
+deep_read_tool = DeepReadTool()
