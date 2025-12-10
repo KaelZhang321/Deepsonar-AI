@@ -583,7 +583,7 @@ async def on_message(message: cl.Message) -> None:
         await log_stream.log("   → 调用 AI 分析研究方向...")
         
         plan_response = await cl.make_async(lambda: completion(
-            model=os.getenv("ARK_MODEL_ENDPOINT", "openai/ep-20250603140551-tp9lt"),
+            model="openai/" + os.getenv("ARK_MODEL_ENDPOINT", "ep-20250603140551-tp9lt"),
             messages=[{"role": "user", "content": plan_prompt}],
             api_key=os.getenv("ARK_API_KEY"),
             base_url=os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"),

@@ -67,7 +67,8 @@ async def generate_single_chapter(
 {base_prompt}
 
 【搜索资料】
-以下是关于本章主题的搜索结果，请基于这些真实来源撰写内容：
+以下是关于本章主题的搜索结果，请基于这些真实来源撰写内容。
+**重要：在正文中使用 [Ref-1], [Ref-2] 等格式引用，引用编号必须与下方来源编号一一对应。**
 
 {research_context}
 """
@@ -88,15 +89,16 @@ async def generate_single_chapter(
         
         await log(f"   📝 内容生成完成，正在解析...")
         
-        # Parse the output to extract content and references
-        content, refs = parse_chapter_output(raw_output)
+        # Parse the output to extract content (ignore LLM's refs, use search data instead)
+        content, _ = parse_chapter_output(raw_output)
         
-        # If no refs were parsed, try to use search data refs as fallback
-        if not refs and search_data.get('raw_data'):
-            refs = []
-            for item in search_data['raw_data'][:5]:
+        # CRITICAL: Use actual search data as references, not LLM-generated ones
+        # This ensures all URLs are real and from the search results
+        refs = []
+        if search_data.get('raw_data'):
+            for i, item in enumerate(search_data['raw_data'], 1):
                 refs.append({
-                    "id": item.get('ref_id', '[Ref-1]'),
+                    "id": f"[Ref-{i}]",
                     "url": item.get('url', ''),
                     "title": item.get('title', '参考来源')
                 })
