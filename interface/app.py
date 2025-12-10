@@ -499,6 +499,57 @@ async def on_message(message: cl.Message) -> None:
 
     log_stream = LogStream(side_view, init_msg.id)
 
+    # ==========================
+    # 🧠 Google Deep Research Mode - Intent Decomposition (Planning Phase)
+    # ==========================
+    log_stream.append_sync("🧠 正在进行意图拆解与研究路径规划...")
+    await log_stream.update()
+    
+    # Use the same LLM config as agents
+    import os
+    from litellm import completion
+    
+    plan_prompt = f"""
+用户想研究: "{topic}"。
+请作为一名资深商业分析师，将这个主题拆解为 3 个具体的、互不重叠的子研究方向。
+每个方向应该是一个可以独立搜索的具体问题或数据需求。
+
+只返回 3 行文本，每行一个方向，不要其他任何内容。
+示例格式:
+1. [具体方向1]
+2. [具体方向2]
+3. [具体方向3]
+"""
+    
+    try:
+        plan_response = await cl.make_async(lambda: completion(
+            model=os.getenv("ARK_MODEL_ENDPOINT", "openai/ep-20250603140551-tp9lt"),
+            messages=[{"role": "user", "content": plan_prompt}],
+            api_key=os.getenv("ARK_API_KEY"),
+            base_url=os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"),
+            max_tokens=500
+        ))()
+        
+        plan_text = plan_response.choices[0].message.content.strip()
+        
+        log_stream.append_sync(f"📋 研究计划生成完成:\n{plan_text}")
+        await log_stream.update()
+        
+        # Construct enhanced input with the research plan
+        enhanced_topic = f"""
+研究主题: {topic}
+
+请重点围绕以下三个维度进行深度研究和数据搜集:
+{plan_text}
+
+请确保针对每个维度都进行独立的搜索和分析，最终整合成一份完整的报告。
+"""
+    except Exception as e:
+        # Fallback to original topic if planning fails
+        log_stream.append_sync(f"⚠️ 规划阶段出现问题，使用原始主题: {str(e)}")
+        await log_stream.update()
+        enhanced_topic = topic
+
     # Define step callback for CrewAI
     def handle_agent_step(step_output):
         """Callback for every agent step to update the UI."""
@@ -529,18 +580,20 @@ async def on_message(message: cl.Message) -> None:
         await stream.update()
 
     try:
-        # Get the crew from session
-        crew: BusinessAnalysisCrew = cl.user_session.get("crew")
-
-        # Run the actual crew with live logging
-        log_stream.append_sync("✅ 团队组建完成，开始执行任务...")
+        # === USE LONG REPORT GENERATION AS DEFAULT ===
+        # This uses the "Divide and Conquer" chapter-by-chapter approach
+        # for higher quality, longer reports with deduplicated references
+        
+        log_stream.append_sync("📖 启动分章生成模式 (Divide & Conquer)...")
         await log_stream.update()
         
-        # We need to run run_async but pass the sync handle_agent_step callback
-        # The handle_agent_step callback itself handles the sync->async bridge
-        
-        # Note: We pass handle_agent_step as the callback for live logging
-        result = await crew.run_async(topic, step_callback=handle_agent_step)
+        # Generate long-form report with chapter-by-chapter approach
+        result = await generate_long_report(
+            topic=topic,  # Use original topic, outline generation handles decomposition
+            log_stream=log_stream,
+            side_view=side_view,
+            init_msg=init_msg
+        )
         
         # === FINAL REPORT DISPLAY ===
         # Switch side panel to report mode
@@ -622,6 +675,115 @@ async def on_message(message: cl.Message) -> None:
                 f"Please check your API keys and try again."
             )
         ).send()
+
+
+async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> str:
+    """
+    Generate an ultra-long report using chapter-by-chapter approach.
+    
+    This implements the "Divide and Conquer" pattern:
+    1. Generate outline with LLM
+    2. Generate each chapter independently with focused search
+    3. Deduplicate and merge references globally
+    4. Assemble final document
+    
+    Args:
+        topic: The report topic
+        log_stream: LogStream instance for UI updates
+        side_view: cl.Text element for side panel
+        init_msg: Initial message for UI binding
+        
+    Returns:
+        Complete report as markdown string
+    """
+    from ai_engine.utils import GlobalReferenceManager
+    from ai_engine.generator import (
+        generate_report_outline, 
+        generate_single_chapter,
+        summarize_chapter
+    )
+    
+    # Initialize reference manager
+    ref_manager = GlobalReferenceManager()
+    
+    # --- Step 1: Generate Outline ---
+    log_stream.append_sync("📝 正在生成报告大纲...")
+    await log_stream.update()
+    
+    outline = await generate_report_outline(topic)
+    
+    outline_text = "\n".join([f"  {ch['title']}" for ch in outline])
+    log_stream.append_sync(f"📋 大纲生成完成，共 {len(outline)} 章:\n{outline_text}")
+    await log_stream.update()
+    
+    # Initialize report body
+    full_report = f"# {topic} 深度行业分析报告\n\n"
+    full_report += f"*生成时间: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}*\n\n"
+    full_report += "---\n\n"
+    
+    # Track previous chapter summaries for context continuity
+    previous_summaries = []
+    
+    # --- Step 2: Generate Chapters ---
+    for index, chapter_info in enumerate(outline):
+        chapter_title = chapter_info.get('title', f'章节 {index + 1}')
+        chapter_focus = chapter_info.get('focus', '')
+        
+        # Update UI
+        progress = f"⏳ 正在撰写第 {index + 1}/{len(outline)} 章: {chapter_title}"
+        log_stream.append_sync(f"\n{progress}")
+        await log_stream.update()
+        
+        # Build context from previous chapters
+        previous_context = ""
+        if previous_summaries:
+            previous_context = "前文摘要: " + " | ".join(previous_summaries[-2:])  # Last 2 chapters
+        
+        # Generate this chapter
+        try:
+            chapter_content, chapter_refs = await generate_single_chapter(
+                topic=topic,
+                chapter_info=chapter_info,
+                previous_summary=previous_context,
+                search_count=8
+            )
+            
+            # Process references (deduplicate and rewrite IDs)
+            processed_content = ref_manager.process_chapter_content(chapter_content, chapter_refs)
+            
+            # Add to report
+            full_report += f"## {chapter_title}\n\n"
+            full_report += processed_content
+            full_report += "\n\n"
+            
+            # Update summary for next chapter's context
+            chapter_summary = summarize_chapter(chapter_content, max_length=150)
+            previous_summaries.append(f"{chapter_title}: {chapter_summary}")
+            
+            log_stream.append_sync(f"✅ 第 {index + 1} 章完成 ({len(chapter_content)} 字)")
+            await log_stream.update()
+            
+            # Update side panel with progress
+            side_view.content = full_report + "\n\n*[生成中...]*"
+            if hasattr(side_view, "update"):
+                await side_view.update()
+            else:
+                await side_view.send(for_id=init_msg.id)
+                
+        except Exception as e:
+            log_stream.append_sync(f"⚠️ 第 {index + 1} 章生成失败: {str(e)}")
+            await log_stream.update()
+            full_report += f"## {chapter_title}\n\n*[章节生成失败]*\n\n"
+    
+    # --- Step 3: Add Final Bibliography ---
+    bibliography = ref_manager.get_final_bibliography()
+    full_report += bibliography
+    
+    ref_count = ref_manager.get_ref_count()
+    log_stream.append_sync(f"\n📚 参考文献整理完成，共 {ref_count} 条唯一引用")
+    await log_stream.update()
+    
+    return full_report
 
 
 @cl.on_stop

@@ -15,11 +15,20 @@ chainlit>=1.0
 # Data Processing & Search
 crawl4ai>=0.2.0
 duckduckgo-search>=4.0
+beautifulsoup4>=4.12.0
 
-# LLM Provider (OpenAI SDK used for 火山引擎 ARK API compatibility)
+# LLM Provider
 openai>=1.0
+litellm>=1.0
+
+# Web Crawling (Optional - for Deep Read)
+firecrawl-py>=0.0.16  # Optional: pip install firecrawl-py
+
+# PDF Export
+reportlab>=4.0
 
 # Utilities
 python-dotenv>=1.0
 pydantic[email]>=2.0
 apscheduler>=3.10.0
+requests>=2.31.0
