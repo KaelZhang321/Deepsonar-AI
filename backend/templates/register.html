@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Register - DeepSonar AI{% endblock %}
+{% block title %}注册 - DeepSonar AI{% endblock %}
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center px-6 py-12">
@@ -12,8 +12,8 @@
                     DeepSonar AI
                 </span>
             </a>
-            <h1 class="text-2xl font-bold">Create Account</h1>
-            <p class="text-gray-400 mt-2">Start your AI-powered analysis journey</p>
+            <h1 class="text-2xl font-bold">创建账户</h1>
+            <p class="text-gray-400 mt-2">开启您的 AI 智能分析之旅</p>
         </div>
 
         <div class="glass rounded-2xl p-8 glow">
@@ -36,42 +36,42 @@
                 {% csrf_token %}
                 
                 <div>
-                    <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                    <label for="username" class="block text-sm font-medium text-gray-300 mb-2">用户名</label>
                     <input type="text" name="username" id="username" required
                         class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
-                        placeholder="Choose a username">
+                        placeholder="请输入用户名">
                 </div>
 
                 <div>
-                    <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                    <label for="email" class="block text-sm font-medium text-gray-300 mb-2">邮箱地址</label>
                     <input type="email" name="email" id="email"
                         class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
-                        placeholder="you@example.com">
+                        placeholder="example@email.com">
                 </div>
 
                 <div>
-                    <label for="password1" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                    <label for="password1" class="block text-sm font-medium text-gray-300 mb-2">设置密码</label>
                     <input type="password" name="password1" id="password1" required
                         class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
-                        placeholder="Create a password">
+                        placeholder="请输入密码">
                 </div>
 
                 <div>
-                    <label for="password2" class="block text-sm font-medium text-gray-300 mb-2">Confirm Password</label>
+                    <label for="password2" class="block text-sm font-medium text-gray-300 mb-2">确认密码</label>
                     <input type="password" name="password2" id="password2" required
                         class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
-                        placeholder="Confirm your password">
+                        placeholder="请再次输入密码">
                 </div>
 
                 <button type="submit" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold transition">
-                    Create Account
+                    立即注册
                 </button>
             </form>
 
             <div class="mt-6 text-center">
                 <p class="text-gray-400">
-                    Already have an account? 
-                    <a href="{% url 'login' %}" class="text-purple-400 hover:text-purple-300">Sign In</a>
+                    已有账户？ 
+                    <a href="{% url 'login' %}" class="text-purple-400 hover:text-purple-300">立即登录</a>
                 </p>
             </div>
         </div>

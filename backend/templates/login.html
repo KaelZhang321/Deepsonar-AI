@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Login - DeepSonar AI{% endblock %}
+{% block title %}登录 - DeepSonar AI{% endblock %}
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center px-6">
@@ -12,14 +12,14 @@
                     DeepSonar AI
                 </span>
             </a>
-            <h1 class="text-2xl font-bold">Welcome Back</h1>
-            <p class="text-gray-400 mt-2">Sign in to continue to your dashboard</p>
+            <h1 class="text-2xl font-bold">欢迎回来</h1>
+            <p class="text-gray-400 mt-2">登录您的账户以继续使用</p>
         </div>
 
         <div class="glass rounded-2xl p-8 glow">
             {% if form.errors %}
             <div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
-                <p class="text-red-300 text-sm">Invalid username or password. Please try again.</p>
+                <p class="text-red-300 text-sm">用户名或密码错误，请重试。</p>
             </div>
             {% endif %}
 
@@ -27,28 +27,28 @@
                 {% csrf_token %}
                 
                 <div>
-                    <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                    <label for="username" class="block text-sm font-medium text-gray-300 mb-2">用户名</label>
                     <input type="text" name="username" id="username" required
                         class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
-                        placeholder="Enter your username">
+                        placeholder="请输入用户名">
                 </div>
 
                 <div>
-                    <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                    <label for="password" class="block text-sm font-medium text-gray-300 mb-2">密码</label>
                     <input type="password" name="password" id="password" required
                         class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500"
-                        placeholder="Enter your password">
+                        placeholder="请输入密码">
                 </div>
 
                 <button type="submit" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold transition">
-                    Sign In
+                    登 录
                 </button>
             </form>
 
             <div class="mt-6 text-center">
                 <p class="text-gray-400">
-                    Don't have an account? 
-                    <a href="{% url 'register' %}" class="text-purple-400 hover:text-purple-300">Register</a>
+                    还没有账户？ 
+                    <a href="{% url 'register' %}" class="text-purple-400 hover:text-purple-300">立即注册</a>
                 </p>
             </div>
         </div>
