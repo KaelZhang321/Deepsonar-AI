@@ -174,6 +174,10 @@ class TrialApplicationAdmin(admin.ModelAdmin):
         
         expires_date = user.membership_expires_at.strftime('%Y年%m月%d日 %H:%M')
         
+        # Get chainlit URL from settings
+        from django.conf import settings
+        chainlit_url = settings.CHAINLIT_URL
+        
         html_content = f"""
 <div style="font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
     <div style="background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
@@ -190,7 +194,7 @@ class TrialApplicationAdmin(admin.ModelAdmin):
             <p style="margin: 8px 0;"><strong>有效期至：</strong>{expires_date}</p>
         </div>
         
-        <p><a href="http://localhost:8001" style="display: inline-block; background: #6366f1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">立即登录 →</a></p>
+        <p><a href="{chainlit_url}" style="display: inline-block; background: #6366f1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">立即登录 →</a></p>
         
         <h4>试用期间，您可以：</h4>
         <ul>
