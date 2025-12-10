@@ -511,72 +511,57 @@ async def on_message(message: cl.Message) -> None:
     # Create a Report record in the database
     report = await create_report(topic, django_user)
 
-    # Create live log side panel
-    # We use a simple alphanumeric name to ensure binding works correctly
-    side_view_name = "live_logs" 
-    side_view = cl.Text(
-        name=side_view_name,
-        content="🚀 系统启动，初始化智能体团队...\n",
-        display="side",
-        language="bash"
-    )
-    
     # Send initial status message
-    # Attaching side_view here makes it available immediately
-    init_msg = cl.Message(
-        content=f"🚀 **Starting analysis for:** {topic}\n\n👇 *详细日志已生成，请查看侧边栏或点击下方 {side_view_name}*",
-        elements=[side_view]
-    )
-    await init_msg.send()
+    init_msg = await cl.Message(
+        content=f"🚀 **Starting analysis for:** {topic}\n\n⏳ *正在生成详细日志，请稍候...*",
+    ).send()
 
-    # Define simple log stream manager
+    # Create a streaming message for live logs
+    log_msg = cl.Message(content="")
+    await log_msg.send()
+    
+    # Define simple log stream manager using message streaming
     class LogStream:
-        def __init__(self, element, msg, msg_id):
-            self.element = element
-            self.msg = msg  # Keep reference to the message
-            self.content = element.content
-            self.msg_id = msg_id
-            self._update_count = 0
-
-        async def update(self):
-            """Async update method - update element content and resend to message."""
-            self.element.content = self.content
-            self._update_count += 1
-            
-            try:
-                # Method 1: Update the message with new elements
-                # This refreshes the side panel content
-                self.msg.elements = [self.element]
-                await self.msg.update()
-            except Exception as e1:
-                try:
-                    # Method 2: Try updating just the element
-                    if hasattr(self.element, "update"):
-                        await self.element.update()
-                except Exception as e2:
-                    try:
-                        # Method 3: Re-send element to message
-                        await self.element.send(for_id=self.msg_id)
-                    except Exception as e3:
-                        # Log failure silently - don't block execution
-                        pass
-
+        def __init__(self, message):
+            self.message = message
+            self.content = ""
+        
+        async def log(self, text: str):
+            """Stream a new log line."""
+            line = f"{text}\n"
+            self.content += line
+            await self.message.stream_token(line)
+        
+        async def log_separator(self):
+            """Add a visual separator."""
+            await self.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        
+        # Aliases for compatibility
         def append_sync(self, text):
-            """Append text to the log content."""
+            """Sync append - adds to buffer."""
             self.content += f"{text}\n"
+        
+        async def update(self):
+            """Stream any buffered content."""
+            if self.content:
+                # Find content that hasn't been streamed yet
+                current_output = self.message.content or ""
+                if len(self.content) > len(current_output):
+                    new_content = self.content[len(current_output):]
+                    if new_content:
+                        await self.message.stream_token(new_content)
 
-    log_stream = LogStream(side_view, init_msg, init_msg.id)
+    log_stream = LogStream(log_msg)
 
     # ==========================
     # 🧠 Google Deep Research Mode - Intent Decomposition (Planning Phase)
     # ==========================
-    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    log_stream.append_sync(f"📌 分析主题: {topic}")
-    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    log_stream.append_sync("")
-    log_stream.append_sync("🧠 [阶段 1/4] 意图拆解与研究路径规划...")
-    log_stream.append_sync("   → 正在分析主题的核心研究方向")
-    await log_stream.update()
+    await log_stream.log_separator()
+    await log_stream.log(f"📌 分析主题: {topic}")
+    await log_stream.log_separator()
+    await log_stream.log("")
+    await log_stream.log("🧠 [阶段 1/4] 意图拆解与研究路径规划...")
+    await log_stream.log("   → 正在分析主题的核心研究方向")
     
     # Use the same LLM config as agents
     import os
@@ -595,6 +580,8 @@ async def on_message(message: cl.Message) -> None:
 """
     
     try:
+        await log_stream.log("   → 调用 AI 分析研究方向...")
+        
         plan_response = await cl.make_async(lambda: completion(
             model=os.getenv("ARK_MODEL_ENDPOINT", "openai/ep-20250603140551-tp9lt"),
             messages=[{"role": "user", "content": plan_prompt}],
@@ -605,12 +592,11 @@ async def on_message(message: cl.Message) -> None:
         
         plan_text = plan_response.choices[0].message.content.strip()
         
-        log_stream.append_sync("   ✅ 研究方向规划完成:")
+        await log_stream.log("   ✅ 研究方向规划完成:")
         for line in plan_text.split('\n'):
             if line.strip():
-                log_stream.append_sync(f"      {line.strip()}")
-        log_stream.append_sync("")
-        await log_stream.update()
+                await log_stream.log(f"      {line.strip()}")
+        await log_stream.log("")
         
         # Construct enhanced input with the research plan
         enhanced_topic = f"""
@@ -623,8 +609,7 @@ async def on_message(message: cl.Message) -> None:
 """
     except Exception as e:
         # Fallback to original topic if planning fails
-        log_stream.append_sync(f"⚠️ 规划阶段出现问题，使用原始主题: {str(e)}")
-        await log_stream.update()
+        await log_stream.log(f"⚠️ 规划阶段出现问题，使用原始主题: {str(e)}")
         enhanced_topic = topic
 
     # Define step callback for CrewAI
@@ -653,29 +638,26 @@ async def on_message(message: cl.Message) -> None:
 
     async def async_append_log(stream, text):
         """Async helper to append logs."""
-        stream.append_sync(text)
-        await stream.update()
+        await stream.log(text)
 
     try:
         # === USE LONG REPORT GENERATION AS DEFAULT ===
         # This uses the "Divide and Conquer" chapter-by-chapter approach
         # for higher quality, longer reports with deduplicated references
         
-        log_stream.append_sync("")
-        log_stream.append_sync("📝 [阶段 2/4] 生成报告大纲...")
-        log_stream.append_sync("   → 正在规划报告结构和章节")
-        await log_stream.update()
+        await log_stream.log("")
+        await log_stream.log("📝 [阶段 2/4] 生成报告大纲...")
+        await log_stream.log("   → 正在规划报告结构和章节")
         
         # Generate long-form report with chapter-by-chapter approach
         result = await generate_long_report(
             topic=topic,  # Use original topic, outline generation handles decomposition
             log_stream=log_stream,
-            side_view=side_view,
+            log_msg=log_msg,
             init_msg=init_msg
         )
         
         # === FINAL REPORT DISPLAY ===
-        # Switch side panel to report mode
         
         # Ensure result is a string for display
         if result is None:
@@ -686,18 +668,9 @@ async def on_message(message: cl.Message) -> None:
             display_result = str(result.output)
         else:
             display_result = str(result)
-            
-        side_view.content = display_result
-        side_view.language = "markdown"
-        side_view.name = "✅ 最终深度分析报告"
-        
-        if hasattr(side_view, "update"):
-            await side_view.update()
-        else:
-            await side_view.send(for_id=init_msg.id)
         
         await cl.Message(
-            content=f"🎉 **{topic}** 分析完成！\n\n👉 请查看右侧面板阅读完整报告。",
+            content=f"🎉 **{topic}** 分析完成！\n\n📄 *完整报告已在下方展示*",
         ).send()
 
         # Save the result to the database (filter out review/audit opinions)
@@ -734,10 +707,9 @@ async def on_message(message: cl.Message) -> None:
     except Exception as e:
         # Handle errors
         error_message = str(e)
-        # Log to side panel if possible
-        log_stream.append_sync(f"\n❌ 错误: {error_message}")
+        # Log error to stream
         try:
-            await log_stream.update()
+            await log_stream.log(f"\n❌ 错误: {error_message}")
         except:
             pass
             
@@ -759,7 +731,7 @@ async def on_message(message: cl.Message) -> None:
         ).send()
 
 
-async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> str:
+async def generate_long_report(topic: str, log_stream, log_msg, init_msg) -> str:
     """
     Generate an ultra-long report using chapter-by-chapter approach.
     
@@ -772,7 +744,7 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
     Args:
         topic: The report topic
         log_stream: LogStream instance for UI updates
-        side_view: cl.Text element for side panel
+        log_msg: cl.Message for log streaming
         init_msg: Initial message for UI binding
         
     Returns:
@@ -789,16 +761,14 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
     ref_manager = GlobalReferenceManager()
     
     # --- Step 1: Generate Outline ---
-    log_stream.append_sync("   → 正在调用 AI 生成大纲...")
-    await log_stream.update()
+    await log_stream.log("   → 正在调用 AI 生成大纲...")
     
     outline = await generate_report_outline(topic)
     
-    log_stream.append_sync(f"   ✅ 大纲生成完成，共 {len(outline)} 章:")
+    await log_stream.log(f"   ✅ 大纲生成完成，共 {len(outline)} 章:")
     for ch in outline:
-        log_stream.append_sync(f"      • {ch['title']}")
-    log_stream.append_sync("")
-    await log_stream.update()
+        await log_stream.log(f"      • {ch['title']}")
+    await log_stream.log("")
     
     # Initialize report body
     full_report = f"# {topic} 深度行业分析报告\n\n"
@@ -809,10 +779,9 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
     previous_summaries = []
     
     # --- Step 2: Generate Chapters ---
-    log_stream.append_sync("📊 [阶段 3/4] 分章撰写报告...")
-    log_stream.append_sync(f"   → 预计需要 {len(outline) * 1} - {len(outline) * 2} 分钟")
-    log_stream.append_sync("")
-    await log_stream.update()
+    await log_stream.log("📊 [阶段 3/4] 分章撰写报告...")
+    await log_stream.log(f"   → 预计需要 {len(outline) * 1} - {len(outline) * 2} 分钟")
+    await log_stream.log("")
     
     for index, chapter_info in enumerate(outline):
         chapter_title = chapter_info.get('title', f'章节 {index + 1}')
@@ -820,10 +789,9 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
         
         # Update UI
         progress_bar = "█" * (index + 1) + "░" * (len(outline) - index - 1)
-        log_stream.append_sync(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log_stream.append_sync(f"📖 第 {index + 1}/{len(outline)} 章: {chapter_title}")
-        log_stream.append_sync(f"   进度: [{progress_bar}] {(index + 1) * 100 // len(outline)}%")
-        await log_stream.update()
+        await log_stream.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        await log_stream.log(f"📖 第 {index + 1}/{len(outline)} 章: {chapter_title}")
+        await log_stream.log(f"   进度: [{progress_bar}] {(index + 1) * 100 // len(outline)}%")
         
         # Build context from previous chapters
         previous_context = ""
@@ -834,8 +802,7 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
         try:
             # Define log callback for this chapter
             async def chapter_log_callback(msg: str):
-                log_stream.append_sync(msg)
-                await log_stream.update()
+                await log_stream.log(msg)
             
             chapter_content, chapter_refs = await generate_single_chapter(
                 topic=topic,
@@ -857,36 +824,25 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
             chapter_summary = summarize_chapter(chapter_content, max_length=150)
             previous_summaries.append(f"{chapter_title}: {chapter_summary}")
             
-            log_stream.append_sync(f"✅ 第 {index + 1} 章完成 ({len(chapter_content)} 字)")
-            await log_stream.update()
-            
-            # Update side panel with progress
-            side_view.content = full_report + "\n\n*[生成中...]*"
-            if hasattr(side_view, "update"):
-                await side_view.update()
-            else:
-                await side_view.send(for_id=init_msg.id)
+            await log_stream.log(f"✅ 第 {index + 1} 章完成 ({len(chapter_content)} 字)")
                 
         except Exception as e:
-            log_stream.append_sync(f"⚠️ 第 {index + 1} 章生成失败: {str(e)}")
-            await log_stream.update()
+            await log_stream.log(f"⚠️ 第 {index + 1} 章生成失败: {str(e)}")
             full_report += f"## {chapter_title}\n\n*[章节生成失败]*\n\n"
     
     # --- Step 3: Add Final Bibliography ---
-    log_stream.append_sync("")
-    log_stream.append_sync("📚 [阶段 4/4] 整理参考文献...")
-    await log_stream.update()
+    await log_stream.log("")
+    await log_stream.log("📚 [阶段 4/4] 整理参考文献...")
     
     bibliography = ref_manager.get_final_bibliography()
     full_report += bibliography
     
     ref_count = ref_manager.get_ref_count()
-    log_stream.append_sync(f"   ✅ 参考文献整理完成，共 {ref_count} 条唯一引用")
-    log_stream.append_sync("")
-    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    log_stream.append_sync("🎉 报告生成完成！")
-    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    await log_stream.update()
+    await log_stream.log(f"   ✅ 参考文献整理完成，共 {ref_count} 条唯一引用")
+    await log_stream.log("")
+    await log_stream.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    await log_stream.log("🎉 报告生成完成！")
+    await log_stream.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     
     return full_report
 
