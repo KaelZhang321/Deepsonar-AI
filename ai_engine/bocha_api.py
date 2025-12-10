@@ -143,13 +143,20 @@ def parse_bocha_response(response_data: Dict[str, Any]) -> Dict[str, Any]:
                 content_data = content_str
                 
             if content_type == "webpage":
-                # content_data can be a single webpage dict or a list of webpages
-                if isinstance(content_data, list):
-                    # It's a list of webpage objects, extend the list
+                # CRITICAL FIX: Bocha API returns webpage as {value: [...]} structure
+                # where the actual webpages are in the 'value' array
+                if isinstance(content_data, dict):
+                    if "value" in content_data and isinstance(content_data["value"], list):
+                        # Extract all webpages from the value array
+                        for page in content_data["value"]:
+                            if isinstance(page, dict):
+                                web_sources.append(page)
+                    else:
+                        # Single webpage object without value wrapper
+                        web_sources.append(content_data)
+                elif isinstance(content_data, list):
+                    # Direct list of webpages
                     web_sources.extend(content_data)
-                elif isinstance(content_data, dict):
-                    # Single webpage object
-                    web_sources.append(content_data)
                 
             elif content_type in ["baike_pro", "medical_common", "medical_pro", "weather_china", "weather_international"]:
                 # These are modal cards, usually lists of objects
