@@ -531,37 +531,41 @@ async def on_message(message: cl.Message) -> None:
 
     # Define simple log stream manager
     class LogStream:
-        def __init__(self, element, msg_id):
+        def __init__(self, element, msg, msg_id):
             self.element = element
+            self.msg = msg  # Keep reference to the message
             self.content = element.content
             self.msg_id = msg_id
+            self._update_count = 0
 
         async def update(self):
-            """Async update method using robust strategies."""
+            """Async update method - update element content and resend to message."""
             self.element.content = self.content
+            self._update_count += 1
             
-            # Strategy 1: Try update()
-            if hasattr(self.element, "update"):
-                try:
-                    await self.element.update()
-                    return
-                except Exception:
-                    pass
-            
-            # Strategy 2: Re-send (Overwrite) to same message
             try:
-                # Note: Sending the element again updates it if name matches?
-                # Or we can update the message elements?
-                await self.element.send(for_id=self.msg_id)
-            except Exception:
-                pass
+                # Method 1: Update the message with new elements
+                # This refreshes the side panel content
+                self.msg.elements = [self.element]
+                await self.msg.update()
+            except Exception as e1:
+                try:
+                    # Method 2: Try updating just the element
+                    if hasattr(self.element, "update"):
+                        await self.element.update()
+                except Exception as e2:
+                    try:
+                        # Method 3: Re-send element to message
+                        await self.element.send(for_id=self.msg_id)
+                    except Exception as e3:
+                        # Log failure silently - don't block execution
+                        pass
 
         def append_sync(self, text):
-            # Add line buffering to prevent too frequent updates? 
-            # For now append directly
+            """Append text to the log content."""
             self.content += f"{text}\n"
 
-    log_stream = LogStream(side_view, init_msg.id)
+    log_stream = LogStream(side_view, init_msg, init_msg.id)
 
     # ==========================
     # 🧠 Google Deep Research Mode - Intent Decomposition (Planning Phase)
