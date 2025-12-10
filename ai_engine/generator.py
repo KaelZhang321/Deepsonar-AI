@@ -18,7 +18,8 @@ async def generate_single_chapter(
     topic: str, 
     chapter_info: Dict,
     previous_summary: str = "",
-    search_count: int = 10
+    search_count: int = 10,
+    log_callback: Optional[callable] = None
 ) -> Tuple[str, List[Dict]]:
     """
     Generate a single chapter with research data and structured references.
@@ -28,6 +29,7 @@ async def generate_single_chapter(
         chapter_info: Dict with 'title' and 'focus' keys
         previous_summary: Summary of previous chapters for context continuity
         search_count: Number of search results to fetch
+        log_callback: Optional async callback for logging progress updates
         
     Returns:
         Tuple of (chapter_content, list_of_references)
@@ -37,12 +39,26 @@ async def generate_single_chapter(
     chapter_title = chapter_info.get('title', '章节')
     chapter_focus = chapter_info.get('focus', '')
     
+    # Helper function for logging
+    async def log(msg: str):
+        if log_callback:
+            await log_callback(msg)
+    
     # Construct search query from chapter context
     search_query = f"{topic} {chapter_focus}"
     
+    await log(f"   🔍 正在搜索: {search_query[:50]}...")
+    
     # Perform pre-search for this chapter
     search_data = await cl.make_async(lambda: pre_search(search_query, count=search_count))()
+    
+    # Log search results count
+    result_count = len(search_data.get('raw_data', [])) if search_data else 0
+    await log(f"   📚 找到 {result_count} 条相关资料")
+    
     research_context = format_research_data(search_query, search_data)
+    
+    await log(f"   ✍️ AI 正在撰写 {chapter_title}...")
     
     # Build the generation prompt
     base_prompt = generate_chapter_prompt(topic, chapter_info, previous_summary)
@@ -58,6 +74,8 @@ async def generate_single_chapter(
     
     # Call LLM to generate chapter
     try:
+        await log(f"   🤖 调用大模型生成内容...")
+        
         response = await cl.make_async(lambda: completion(
             model="openai/" + os.getenv("ARK_MODEL_ENDPOINT", "ep-20250603140551-tp9lt"),
             messages=[{"role": "user", "content": full_prompt}],
@@ -67,6 +85,8 @@ async def generate_single_chapter(
         ))()
         
         raw_output = response.choices[0].message.content.strip()
+        
+        await log(f"   📝 内容生成完成，正在解析...")
         
         # Parse the output to extract content and references
         content, refs = parse_chapter_output(raw_output)
@@ -81,10 +101,13 @@ async def generate_single_chapter(
                     "title": item.get('title', '参考来源')
                 })
         
+        await log(f"   ✅ {chapter_title} 撰写完成 ({len(content)} 字)")
+        
         return content, refs
         
     except Exception as e:
         error_msg = f"章节生成失败: {str(e)}"
+        await log(f"   ❌ {error_msg}")
         return error_msg, []
 
 

@@ -566,7 +566,12 @@ async def on_message(message: cl.Message) -> None:
     # ==========================
     # 🧠 Google Deep Research Mode - Intent Decomposition (Planning Phase)
     # ==========================
-    log_stream.append_sync("🧠 正在进行意图拆解与研究路径规划...")
+    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    log_stream.append_sync(f"📌 分析主题: {topic}")
+    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    log_stream.append_sync("")
+    log_stream.append_sync("🧠 [阶段 1/4] 意图拆解与研究路径规划...")
+    log_stream.append_sync("   → 正在分析主题的核心研究方向")
     await log_stream.update()
     
     # Use the same LLM config as agents
@@ -596,7 +601,11 @@ async def on_message(message: cl.Message) -> None:
         
         plan_text = plan_response.choices[0].message.content.strip()
         
-        log_stream.append_sync(f"📋 研究计划生成完成:\n{plan_text}")
+        log_stream.append_sync("   ✅ 研究方向规划完成:")
+        for line in plan_text.split('\n'):
+            if line.strip():
+                log_stream.append_sync(f"      {line.strip()}")
+        log_stream.append_sync("")
         await log_stream.update()
         
         # Construct enhanced input with the research plan
@@ -648,7 +657,9 @@ async def on_message(message: cl.Message) -> None:
         # This uses the "Divide and Conquer" chapter-by-chapter approach
         # for higher quality, longer reports with deduplicated references
         
-        log_stream.append_sync("📖 启动分章生成模式 (Divide & Conquer)...")
+        log_stream.append_sync("")
+        log_stream.append_sync("📝 [阶段 2/4] 生成报告大纲...")
+        log_stream.append_sync("   → 正在规划报告结构和章节")
         await log_stream.update()
         
         # Generate long-form report with chapter-by-chapter approach
@@ -774,13 +785,15 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
     ref_manager = GlobalReferenceManager()
     
     # --- Step 1: Generate Outline ---
-    log_stream.append_sync("📝 正在生成报告大纲...")
+    log_stream.append_sync("   → 正在调用 AI 生成大纲...")
     await log_stream.update()
     
     outline = await generate_report_outline(topic)
     
-    outline_text = "\n".join([f"  {ch['title']}" for ch in outline])
-    log_stream.append_sync(f"📋 大纲生成完成，共 {len(outline)} 章:\n{outline_text}")
+    log_stream.append_sync(f"   ✅ 大纲生成完成，共 {len(outline)} 章:")
+    for ch in outline:
+        log_stream.append_sync(f"      • {ch['title']}")
+    log_stream.append_sync("")
     await log_stream.update()
     
     # Initialize report body
@@ -792,13 +805,20 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
     previous_summaries = []
     
     # --- Step 2: Generate Chapters ---
+    log_stream.append_sync("📊 [阶段 3/4] 分章撰写报告...")
+    log_stream.append_sync(f"   → 预计需要 {len(outline) * 1} - {len(outline) * 2} 分钟")
+    log_stream.append_sync("")
+    await log_stream.update()
+    
     for index, chapter_info in enumerate(outline):
         chapter_title = chapter_info.get('title', f'章节 {index + 1}')
         chapter_focus = chapter_info.get('focus', '')
         
         # Update UI
-        progress = f"⏳ 正在撰写第 {index + 1}/{len(outline)} 章: {chapter_title}"
-        log_stream.append_sync(f"\n{progress}")
+        progress_bar = "█" * (index + 1) + "░" * (len(outline) - index - 1)
+        log_stream.append_sync(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        log_stream.append_sync(f"📖 第 {index + 1}/{len(outline)} 章: {chapter_title}")
+        log_stream.append_sync(f"   进度: [{progress_bar}] {(index + 1) * 100 // len(outline)}%")
         await log_stream.update()
         
         # Build context from previous chapters
@@ -808,11 +828,17 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
         
         # Generate this chapter
         try:
+            # Define log callback for this chapter
+            async def chapter_log_callback(msg: str):
+                log_stream.append_sync(msg)
+                await log_stream.update()
+            
             chapter_content, chapter_refs = await generate_single_chapter(
                 topic=topic,
                 chapter_info=chapter_info,
                 previous_summary=previous_context,
-                search_count=8
+                search_count=8,
+                log_callback=chapter_log_callback
             )
             
             # Process references (deduplicate and rewrite IDs)
@@ -843,11 +869,19 @@ async def generate_long_report(topic: str, log_stream, side_view, init_msg) -> s
             full_report += f"## {chapter_title}\n\n*[章节生成失败]*\n\n"
     
     # --- Step 3: Add Final Bibliography ---
+    log_stream.append_sync("")
+    log_stream.append_sync("📚 [阶段 4/4] 整理参考文献...")
+    await log_stream.update()
+    
     bibliography = ref_manager.get_final_bibliography()
     full_report += bibliography
     
     ref_count = ref_manager.get_ref_count()
-    log_stream.append_sync(f"\n📚 参考文献整理完成，共 {ref_count} 条唯一引用")
+    log_stream.append_sync(f"   ✅ 参考文献整理完成，共 {ref_count} 条唯一引用")
+    log_stream.append_sync("")
+    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    log_stream.append_sync("🎉 报告生成完成！")
+    log_stream.append_sync("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     await log_stream.update()
     
     return full_report
