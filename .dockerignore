@@ -1,0 +1,68 @@
+# DeepSonar AI - Docker Ignore File
+# Excludes unnecessary files from Docker build context
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+.eggs
+*.egg
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Virtual environments
+venv
+.venv
+env
+.env.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Test files
+test_*.py
+tests/
+
+# Documentation (keep for reference but not needed in container)
+*.md
+!README.md
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+build/
+dist/
+
+# Database (will be mounted as volume)
+*.sqlite3
+db.sqlite3
+
+# Chainlit cache (will be mounted as volume)
+.chainlit/
+
+# Claude/AI assistant files
+.claude/
+.spec-workflow/
+.files/
+
+# Node modules (if any frontend build)
+node_modules/

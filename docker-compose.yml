@@ -1,0 +1,101 @@
+# DeepSonar AI - Docker Compose Configuration
+# Domain Mapping:
+#   - ai.deepsonar.com.cn  -> Chainlit (8001)
+#   - www.deepsonar.com.cn -> Django (8000)
+
+services:
+  # ==========================================================================
+  # Nginx Reverse Proxy (Domain Router)
+  # ==========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: deepsonar-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/app/backend/staticfiles:ro
+      # Uncomment for SSL certificates
+      # - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - chainlit
+      - django
+    restart: unless-stopped
+    networks:
+      - deepsonar-network
+
+  # ==========================================================================
+  # Chainlit Frontend + AI Engine
+  # ai.deepsonar.com.cn -> :8001
+  # ==========================================================================
+  chainlit:
+    image: deepsonar-ai
+    container_name: deepsonar-chainlit
+    ports:
+      - "8001:8001"
+    environment:
+      # Volcengine ARK API
+      - ARK_API_KEY=${ARK_API_KEY}
+      - ARK_MODEL_ENDPOINT=${ARK_MODEL_ENDPOINT}
+      - ARK_BASE_URL=${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
+      # Bocha AI Search
+      - BOCHA_API_KEY=${BOCHA_API_KEY}
+      # Optional: Firecrawl
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
+      # Django connection
+      - DJANGO_SETTINGS_MODULE=config.settings
+      # Chainlit Auth
+      - CHAINLIT_AUTH_SECRET=${CHAINLIT_AUTH_SECRET:-your-secret-key-change-me}
+    volumes:
+      - chainlit_data:/app/interface/.chainlit
+      - sqlite_data:/app/backend/db
+    depends_on:
+      - django
+    restart: unless-stopped
+    networks:
+      - deepsonar-network
+    command: chainlit run app.py --host 0.0.0.0 --port 8001
+
+  # ==========================================================================
+  # Django Backend API
+  # www.deepsonar.com.cn -> :8000
+  # ==========================================================================
+  django:
+    image: deepsonar-ai
+    container_name: deepsonar-django
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-django-secret-key}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,www.deepsonar.com.cn,deepsonar.com.cn,deepsonar-django
+    volumes:
+      - sqlite_data:/app/backend/db
+      - static_files:/app/backend/staticfiles
+    working_dir: /app/backend
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    restart: unless-stopped
+    networks:
+      - deepsonar-network
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+volumes:
+  chainlit_data:
+    driver: local
+  sqlite_data:
+    driver: local
+  static_files:
+    driver: local
+
+# ==========================================================================
+# Networks
+# ==========================================================================
+networks:
+  deepsonar-network:
+    driver: bridge
