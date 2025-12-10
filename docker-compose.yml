@@ -1,6 +1,6 @@
 # DeepSonar AI - Docker Compose Configuration
 # Domain Mapping:
-#   - ai.deepsonar.com.cn  -> Chainlit (8001)
+#   - chat.deepsonar.com.cn  -> Chainlit (8001)
 #   - www.deepsonar.com.cn -> Django (8000)
 
 services:
@@ -27,7 +27,7 @@ services:
 
   # ==========================================================================
   # Chainlit Frontend + AI Engine
-  # ai.deepsonar.com.cn -> :8001
+  # chat.deepsonar.com.cn -> :8001
   # ==========================================================================
   chainlit:
     image: deepsonar-ai
@@ -47,6 +47,9 @@ services:
       - DJANGO_SETTINGS_MODULE=config.settings
       # Chainlit Auth
       - CHAINLIT_AUTH_SECRET=${CHAINLIT_AUTH_SECRET:-your-secret-key-change-me}
+      # Site URLs for redirects
+      - CHAINLIT_URL=${CHAINLIT_URL:-http://chat.deepsonar.com.cn}
+      - DJANGO_URL=${DJANGO_URL:-http://www.deepsonar.com.cn}
     volumes:
       - chainlit_data:/app/interface/.chainlit
       - sqlite_data:/app/backend/db
@@ -70,6 +73,9 @@ services:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-django-secret-key}
       - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
       - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,www.deepsonar.com.cn,deepsonar.com.cn,deepsonar-django
+      # Site URLs for redirects and templates
+      - CHAINLIT_URL=${CHAINLIT_URL:-http://chat.deepsonar.com.cn}
+      - DJANGO_URL=${DJANGO_URL:-http://www.deepsonar.com.cn}
     volumes:
       - sqlite_data:/app/backend/db
       - static_files:/app/backend/staticfiles
