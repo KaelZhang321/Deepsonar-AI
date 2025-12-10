@@ -52,7 +52,6 @@ services:
       - CHAINLIT_URL=${CHAINLIT_URL:-http://chat.deepsonar.com.cn}
       - DJANGO_URL=${DJANGO_URL:-http://www.deepsonar.com.cn}
     volumes:
-      - chainlit_data:/app/interface/.chainlit
       - sqlite_data:/app/backend/db
     depends_on:
       - django
@@ -93,8 +92,6 @@ services:
 # Volumes
 # ==========================================================================
 volumes:
-  chainlit_data:
-    driver: local
   sqlite_data:
     driver: local
   static_files:
