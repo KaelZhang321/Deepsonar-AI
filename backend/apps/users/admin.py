@@ -16,7 +16,7 @@ class UserAdmin(BaseUserAdmin):
         "email",
         "membership_level",
         "get_total_reports",
-        "daily_reports_count",
+        "monthly_reports_count",
         "get_remaining_reports_display",
         "membership_expires_at",
         "is_staff",
@@ -33,15 +33,15 @@ class UserAdmin(BaseUserAdmin):
             "fields": (
                 "membership_level",
                 "membership_expires_at",
-                "daily_reports_count",
-                "last_report_date",
+                "monthly_reports_count",
+                "last_report_month",
             ),
             "description": "用户会员等级和报告使用情况"
         }),
         ("API使用", {"fields": ("api_calls_count",)}),
     )
     
-    readonly_fields = ("daily_reports_count", "last_report_date", "api_calls_count")
+    readonly_fields = ("monthly_reports_count", "last_report_month", "api_calls_count")
     
     def get_queryset(self, request):
         """Annotate queryset with total reports count."""
@@ -53,11 +53,11 @@ class UserAdmin(BaseUserAdmin):
         """显示用户的报告总数"""
         return getattr(obj, 'total_reports', Report.objects.filter(user=obj).count())
     
-    @admin.display(description='今日剩余')
+    @admin.display(description='本月剩余')
     def get_remaining_reports_display(self, obj):
-        """显示今日剩余可生成报告数"""
+        """显示本月剩余可生成报告数"""
         remaining = obj.get_remaining_reports()
-        limit = obj.get_daily_report_limit()
+        limit = obj.get_monthly_report_limit()
         return f"{remaining}/{limit}"
 
 

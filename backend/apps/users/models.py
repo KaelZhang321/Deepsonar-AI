@@ -25,16 +25,16 @@ class User(AbstractUser):
 
     class MembershipLevel(models.TextChoices):
         TRIAL = 'trial', '试用会员'
-        MONTHLY = 'monthly', '月度会员'
-        QUARTERLY = 'quarterly', '季度会员'
-        YEARLY = 'yearly', '年度会员'
+        STARTER = 'starter', '入门版'
+        PRO = 'pro', '专业版'
+        ENTERPRISE = 'enterprise', '企业版'
     
-    # Daily report limits per membership level
-    DAILY_REPORT_LIMITS = {
-        'trial': 1,
-        'monthly': 5,
-        'quarterly': 10,
-        'yearly': 15,
+    # Monthly report limits per membership level (matching pricing page)
+    MONTHLY_REPORT_LIMITS = {
+        'trial': 3,        # 试用会员：3次
+        'starter': 30,     # 入门版：每月30次
+        'pro': 100,        # 专业版：每月100次
+        'enterprise': 600, # 企业版：每月600次
     }
 
     # Optional: Add custom fields here
@@ -63,17 +63,17 @@ class User(AbstractUser):
         help_text="会员有效期截止日期"
     )
     
-    # Daily report tracking
-    daily_reports_count: models.PositiveIntegerField = models.PositiveIntegerField(
+    # Monthly report tracking
+    monthly_reports_count: models.PositiveIntegerField = models.PositiveIntegerField(
         default=0,
-        verbose_name="今日报告数",
-        help_text="当天已生成的报告数量"
+        verbose_name="本月报告数",
+        help_text="当月已生成的报告数量"
     )
-    last_report_date: models.DateField = models.DateField(
+    last_report_month: models.DateField = models.DateField(
         null=True,
         blank=True,
-        verbose_name="最后报告日期",
-        help_text="最后生成报告的日期"
+        verbose_name="最后报告月份",
+        help_text="最后生成报告的月份"
     )
 
     class Meta:
@@ -84,39 +84,57 @@ class User(AbstractUser):
     def __str__(self) -> str:
         return self.username
     
+    def get_monthly_report_limit(self) -> int:
+        """获取当前会员等级的每月报告限制"""
+        return self.MONTHLY_REPORT_LIMITS.get(self.membership_level, 3)
+    
+    # Legacy compatibility - map to monthly methods
     def get_daily_report_limit(self) -> int:
-        """获取当前会员等级的每日报告限制"""
-        return self.DAILY_REPORT_LIMITS.get(self.membership_level, 1)
+        """Legacy: 返回每月限额（兼容旧代码）"""
+        return self.get_monthly_report_limit()
+    
+    def is_membership_active(self) -> bool:
+        """检查会员是否有效（未过期）"""
+        if self.membership_expires_at is None:
+            return False
+        return timezone.now() < self.membership_expires_at
     
     def can_generate_report(self) -> bool:
-        """检查用户今天是否还能生成报告"""
-        today = timezone.now().date()
+        """检查用户是否可以生成报告（会员有效且未超限额）"""
+        # Check if membership is expired
+        if not self.is_membership_active():
+            return False
         
-        # Reset counter if it's a new day
-        if self.last_report_date != today:
+        today = timezone.now().date()
+        current_month = today.replace(day=1)
+        
+        # Reset counter if it's a new month
+        if self.last_report_month is None or self.last_report_month.replace(day=1) != current_month:
             return True
         
-        return self.daily_reports_count < self.get_daily_report_limit()
+        return self.monthly_reports_count < self.get_monthly_report_limit()
     
     def increment_report_count(self) -> None:
-        """增加今日报告计数"""
+        """增加本月报告计数"""
         today = timezone.now().date()
+        current_month = today.replace(day=1)
         
-        # Reset counter if it's a new day
-        if self.last_report_date != today:
-            self.daily_reports_count = 1
-            self.last_report_date = today
+        # Reset counter if it's a new month
+        if self.last_report_month is None or self.last_report_month.replace(day=1) != current_month:
+            self.monthly_reports_count = 1
+            self.last_report_month = today
         else:
-            self.daily_reports_count += 1
+            self.monthly_reports_count += 1
         
-        self.save(update_fields=['daily_reports_count', 'last_report_date'])
+        self.save(update_fields=['monthly_reports_count', 'last_report_month'])
     
     def get_remaining_reports(self) -> int:
-        """获取今天剩余可生成的报告数量"""
+        """获取本月剩余可生成的报告数量"""
         today = timezone.now().date()
+        current_month = today.replace(day=1)
         
-        if self.last_report_date != today:
-            return self.get_daily_report_limit()
+        if self.last_report_month is None or self.last_report_month.replace(day=1) != current_month:
+            return self.get_monthly_report_limit()
         
-        return max(0, self.get_daily_report_limit() - self.daily_reports_count)
+        return max(0, self.get_monthly_report_limit() - self.monthly_reports_count)
 
