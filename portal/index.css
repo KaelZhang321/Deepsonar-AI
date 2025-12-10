@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+  Note: Tailwind is currently loaded via CDN in index.html for this project setup.
+  This file is kept for compatibility if a build step is added later.
+  Global styles are currently defined in index.html <style> block.
+*/

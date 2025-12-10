@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Optional: Add sitemap location if available
+# Sitemap: http://www.deepsonar.com.cn/sitemap.xml
