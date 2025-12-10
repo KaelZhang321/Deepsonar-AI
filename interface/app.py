@@ -392,7 +392,7 @@ async def on_chat_start() -> None:
    - ✅ **质量审核总监** - 审核确保报告质量
 3. 获取一份专业的商业分析报告
 
-📊 **[查看历史报告]({os.getenv('DJANGO_URL', 'http://localhost:8000')}/reports/)** - 支持导出为 Markdown、Word、PDF
+📊 **[查看历史报告]({os.getenv('DJANGO_URL', 'http://www.deepsonar.com.cn')}/reports/)** - 支持导出为 Markdown、Word、PDF
 
 **请输入一个主题开始分析！**
 """
@@ -427,7 +427,7 @@ async def on_action_view_history(action: cl.Action):
     await cl.Message(content=history_text).send()
 
 
-# Note: view_reports button removed - reports are now available at http://localhost:8000/reports/
+# Note: view_reports button removed - reports are now available at http://www.deepsonar.com.cn/reports/
 
 
 @cl.on_message

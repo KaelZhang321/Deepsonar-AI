@@ -43,7 +43,6 @@ WORKDIR /app
 COPY ai_engine/ ./ai_engine/
 COPY backend/ ./backend/
 COPY interface/ ./interface/
-COPY portal/ ./portal/
 
 # Copy configuration files
 COPY .env.example ./.env.example

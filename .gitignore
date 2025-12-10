@@ -251,8 +251,11 @@ $RECYCLE.BIN/
 .spec-workflow/user-templates/*.md
 !.spec-workflow/user-templates/.gitkeep
 
-# Chainlit 相关
-.chainlit/
+# Chainlit 相关（保留配置文件，忽略缓存）
+interface/.chainlit/.cache/
+interface/.chainlit/.files/
+!interface/.chainlit/config.toml
+!interface/.chainlit/translations/
 
 # 日志文件
 logs/

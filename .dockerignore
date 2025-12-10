@@ -56,8 +56,9 @@ dist/
 *.sqlite3
 db.sqlite3
 
-# Chainlit cache (will be mounted as volume)
-.chainlit/
+# Chainlit cache files only (keep config.toml and translations)
+.chainlit/.cache
+.chainlit/.files
 
 # Claude/AI assistant files
 .claude/
@@ -66,3 +67,6 @@ db.sqlite3
 
 # Node modules (if any frontend build)
 node_modules/
+
+# Portal frontend source (built files are in backend/static/portal)
+portal/
