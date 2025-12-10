@@ -63,6 +63,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "config.context_processors.site_urls",  # Site URLs for templates
             ],
         },
     },
@@ -115,7 +116,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Authentication settings
 LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "http://localhost:8001"
+
+# Site URLs (configurable for production)
+CHAINLIT_URL = os.getenv("CHAINLIT_URL", "http://localhost:8001")
+DJANGO_URL = os.getenv("DJANGO_URL", "http://localhost:8000")
+LOGIN_REDIRECT_URL = CHAINLIT_URL
 
 # Email settings
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
@@ -127,6 +132,7 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "DeepSonar AI <noreply@deepsonar.ai>")
 EMAIL_TIMEOUT = 30
+
 
 
 
