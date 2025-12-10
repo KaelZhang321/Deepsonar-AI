@@ -27,6 +27,16 @@ ALLOWED_HOSTS: list[str] = [
     for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 ]
 
+# CSRF Trusted Origins - Required for Django 4.0+ with cross-origin requests
+# This must include the full scheme (http/https) and domain
+CSRF_TRUSTED_ORIGINS: list[str] = [
+    origin.strip()
+    for origin in os.getenv(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        "http://localhost:8000,http://127.0.0.1:8000,http://www.deepsonar.com.cn,https://www.deepsonar.com.cn,http://deepsonar.com.cn,https://deepsonar.com.cn"
+    ).split(",")
+]
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
