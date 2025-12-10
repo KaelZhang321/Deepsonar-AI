@@ -105,6 +105,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # For collectstatic in production
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]

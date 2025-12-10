@@ -209,3 +209,69 @@ class SearchResult(models.Model):
 
     def __str__(self) -> str:
         return f"Search: {self.keyword[:50]} ({self.results_count} results)"
+
+
+class CrawledContent(models.Model):
+    """
+    Model to store crawled web page content from Deep Read operations.
+    
+    Stores both raw content and summarized content for reference and caching.
+    """
+    class CrawlMethod(models.TextChoices):
+        JINA = "jina", "Jina AI Reader"
+        FIRECRAWL = "firecrawl", "Firecrawl"
+        BEAUTIFULSOUP = "beautifulsoup", "BeautifulSoup"
+        OTHER = "other", "Other"
+
+    url = models.URLField(
+        max_length=2000,
+        db_index=True,
+        help_text="爬取的 URL 地址"
+    )
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="crawled_contents",
+        help_text="关联的报告"
+    )
+    raw_content = models.TextField(
+        blank=True,
+        help_text="原始爬取内容 (Markdown)"
+    )
+    summary = models.TextField(
+        blank=True,
+        help_text="LLM 总结后的内容"
+    )
+    content_length = models.IntegerField(
+        default=0,
+        help_text="原始内容长度"
+    )
+    crawl_method = models.CharField(
+        max_length=20,
+        choices=CrawlMethod.choices,
+        default=CrawlMethod.JINA,
+        help_text="爬取方式"
+    )
+    success = models.BooleanField(
+        default=True,
+        help_text="爬取是否成功"
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text="错误信息（如果失败）"
+    )
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="爬取时间"
+    )
+
+    class Meta:
+        db_table = "crawled_contents"
+        verbose_name = "爬取内容"
+        verbose_name_plural = "爬取内容"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Crawl: {self.url[:60]}... ({self.crawl_method})"
