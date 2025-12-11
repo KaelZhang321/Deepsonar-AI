@@ -40,7 +40,9 @@ services:
       - ARK_API_KEY=${ARK_API_KEY}
       - ARK_MODEL_ENDPOINT=${ARK_MODEL_ENDPOINT}
       - ARK_BASE_URL=${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
-      # Bocha AI Search
+      # Tavily Search API (Primary)
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      # Bocha AI Search (Fallback)
       - BOCHA_API_KEY=${BOCHA_API_KEY}
       # Optional: Firecrawl
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
