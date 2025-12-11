@@ -10,6 +10,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse
+import os
 
 from apps.reports.models import Report
 from apps.users.forms import CustomUserCreationForm
