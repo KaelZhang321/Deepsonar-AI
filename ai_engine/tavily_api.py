@@ -1,11 +1,12 @@
 """
-Tavily Search API Integration
+Tavily Search API Integration (Official SDK)
 
 Tavily is a search API optimized for LLMs and AI agents.
 This module provides search functionality with higher priority than Bocha.
+
+Uses official tavily-python SDK: pip install tavily-python
 """
 import os
-import requests
 from typing import Dict, List, Any, Optional
 
 
@@ -14,18 +15,16 @@ def tavily_search(
     max_results: int = 10,
     search_depth: str = "advanced",
     include_answer: bool = True,
-    include_raw_content: bool = False,
     api_key: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Perform a search using Tavily Search API.
+    Perform a search using Tavily Search API (official SDK).
     
     Args:
         query: Search query
         max_results: Maximum number of results (1-20)
         search_depth: "basic" for fast, "advanced" for comprehensive
         include_answer: Whether to include AI-generated answer
-        include_raw_content: Whether to include raw page content
         api_key: Optional API key override
         
     Returns:
@@ -41,6 +40,49 @@ def tavily_search(
             "results": []
         }
     
+    try:
+        from tavily import TavilyClient
+        
+        client = TavilyClient(api_key=api_key)
+        
+        response = client.search(
+            query=query,
+            max_results=min(max_results, 20),
+            search_depth=search_depth,
+            include_answer=include_answer
+        )
+        
+        return {
+            "success": True,
+            "answer": response.get("answer", ""),
+            "results": response.get("results", []),
+            "query": response.get("query", query),
+            "response_time": response.get("response_time", 0)
+        }
+        
+    except ImportError:
+        # Fallback to REST API if SDK not installed
+        return _tavily_search_rest(query, max_results, search_depth, include_answer, api_key)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Tavily API error: {str(e)}",
+            "results": []
+        }
+
+
+def _tavily_search_rest(
+    query: str,
+    max_results: int,
+    search_depth: str,
+    include_answer: bool,
+    api_key: str
+) -> Dict[str, Any]:
+    """
+    Fallback: Tavily search using REST API directly.
+    """
+    import requests
+    
     api_url = "https://api.tavily.com/search"
     
     payload = {
@@ -48,8 +90,7 @@ def tavily_search(
         "query": query,
         "max_results": min(max_results, 20),
         "search_depth": search_depth,
-        "include_answer": include_answer,
-        "include_raw_content": include_raw_content
+        "include_answer": include_answer
     }
     
     try:
@@ -70,22 +111,10 @@ def tavily_search(
             "response_time": data.get("response_time", 0)
         }
         
-    except requests.exceptions.Timeout:
-        return {
-            "success": False,
-            "error": "Tavily API timeout",
-            "results": []
-        }
-    except requests.exceptions.HTTPError as e:
-        return {
-            "success": False,
-            "error": f"Tavily API HTTP error: {e.response.status_code}",
-            "results": []
-        }
     except Exception as e:
         return {
             "success": False,
-            "error": f"Tavily API error: {str(e)}",
+            "error": f"Tavily REST API error: {str(e)}",
             "results": []
         }
 
