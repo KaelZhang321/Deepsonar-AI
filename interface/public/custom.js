@@ -51,9 +51,10 @@
                 // Clear SSO cookies via expiry
                 document.cookie = 'deepsonar_sso_active=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.deepsonar.com.cn';
                 
-                // Redirect to Django login page
+                // Redirect to Django logout page (not login!)
+                // This will clear Django session and then redirect to home/login
                 setTimeout(function() {
-                    window.location.href = DJANGO_LOGIN_URL;
+                    window.location.href = 'http://www.deepsonar.com.cn/logout/';
                 }, 100);
             }
         });
