@@ -30,6 +30,39 @@
     }
     
     // ==========================================================================
+    // SSO: Handle Logout Button
+    // ==========================================================================
+    function setupLogoutHandler() {
+        // Watch for logout button clicks
+        document.addEventListener('click', function(e) {
+            const target = e.target.closest('button, a, [role="menuitem"]');
+            if (!target) return;
+            
+            const text = target.textContent || '';
+            // Check if this is a logout button (Chinese or English)
+            if (text.includes('退出登录') || text.includes('Logout') || text.includes('Sign out')) {
+                console.log('[DeepSonar SSO] Logout button clicked');
+                
+                // Clear Chainlit localStorage tokens
+                ['token', 'chainlit_token', 'access_token', 'auth_token'].forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                // Clear SSO cookies via expiry
+                document.cookie = 'deepsonar_sso_active=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.deepsonar.com.cn';
+                
+                // Redirect to Django login page
+                setTimeout(function() {
+                    window.location.href = DJANGO_LOGIN_URL;
+                }, 100);
+            }
+        });
+    }
+    
+    // Initialize logout handler
+    setupLogoutHandler();
+    
+    // ==========================================================================
     // Live Logs Auto-Expand
     // ==========================================================================
     
