@@ -14,10 +14,19 @@
     
     // Check if we're on the Chainlit login page
     if (window.location.pathname === '/login' || window.location.pathname === '/login/') {
-        console.log('[DeepSonar SSO] Detected Chainlit login page, redirecting to Django login...');
-        // Redirect to Django login page
-        window.location.href = DJANGO_LOGIN_URL;
-        return; // Stop executing rest of script
+        // Check if we have an SSO marker cookie - if we do, the SSO validation failed
+        // In that case, don't redirect to avoid a loop
+        const hasSSOCookie = document.cookie.includes('deepsonar_sso_active');
+        
+        if (!hasSSOCookie) {
+            console.log('[DeepSonar SSO] No SSO token, redirecting to Django login...');
+            window.location.href = DJANGO_LOGIN_URL;
+            return;
+        } else {
+            console.log('[DeepSonar SSO] SSO token exists but validation failed, staying on Chainlit login');
+            // Token exists but validation failed - user needs to re-login via Chainlit
+            // This could happen if the token is expired or invalid
+        }
     }
     
     // ==========================================================================

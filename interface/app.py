@@ -372,9 +372,10 @@ def on_logout(request, response):
     
     Clear SSO cookie and redirect to Django login page.
     """
-    # Clear the SSO cookie
+    # Clear the SSO cookies
     cookie_domain = os.getenv('SSO_COOKIE_DOMAIN', '.deepsonar.com.cn')
     response.delete_cookie('deepsonar_sso_token', domain=cookie_domain)
+    response.delete_cookie('deepsonar_sso_active', domain=cookie_domain)
     
     # Get Django login URL
     django_url = os.getenv('DJANGO_URL', 'http://www.deepsonar.com.cn')
@@ -384,7 +385,7 @@ def on_logout(request, response):
     response.status_code = 302
     response.headers["Location"] = login_url
     
-    print(f"🔐 [SSO] Logout: cleared cookie, redirecting to {login_url}")
+    print(f"🔐 [SSO] Logout: cleared cookies, redirecting to {login_url}")
 
 
 # =============================================================================

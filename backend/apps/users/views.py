@@ -67,6 +67,17 @@ def login_view(request):
                     samesite='Lax',
                 )
                 
+                # Set a non-httponly marker cookie for JavaScript to detect SSO state
+                response.set_cookie(
+                    'deepsonar_sso_active',
+                    '1',
+                    max_age=15 * 24 * 60 * 60,
+                    domain=cookie_domain,
+                    httponly=False,  # JavaScript can read this
+                    secure=False,
+                    samesite='Lax',
+                )
+                
                 print(f"🔐 [SSO] Set token cookie for user {username}")
                 return response
         else:
@@ -125,6 +136,17 @@ def register_view(request):
                 samesite='Lax',
             )
             
+            # Set a non-httponly marker cookie for JavaScript
+            response.set_cookie(
+                'deepsonar_sso_active',
+                '1',
+                max_age=15 * 24 * 60 * 60,
+                domain=cookie_domain,
+                httponly=False,
+                secure=False,
+                samesite='Lax',
+            )
+            
             print(f"🔐 [SSO] Set token cookie for new user {user.username}")
             return response
     else:
@@ -138,12 +160,13 @@ def logout_view(request):
     logout(request)
     messages.info(request, 'You have been logged out.')
     
-    # Create response and clear SSO cookie
+    # Create response and clear SSO cookies
     response = redirect('home')
     cookie_domain = os.getenv('SSO_COOKIE_DOMAIN', '.deepsonar.com.cn')
     response.delete_cookie('deepsonar_sso_token', domain=cookie_domain)
+    response.delete_cookie('deepsonar_sso_active', domain=cookie_domain)
     
-    print(f"🔐 [SSO] Cleared token cookie")
+    print(f"🔐 [SSO] Cleared token cookies")
     return response
 
 
