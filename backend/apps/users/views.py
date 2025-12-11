@@ -85,10 +85,16 @@ def logout_view(request):
 @login_required
 def reports_list(request):
     """Display list of user's reports."""
+    # Debug: Log which user is viewing reports
+    print(f"📊 [Reports List] User: {request.user.username} (ID: {request.user.id})")
+    
     reports = Report.objects.filter(
         user=request.user,
         status=Report.Status.COMPLETED
     ).order_by('-created_at')
+    
+    # Debug: Log report count
+    print(f"📊 [Reports List] Found {reports.count()} reports for user {request.user.username}")
     
     return render(request, 'reports/list.html', {'reports': reports})
 

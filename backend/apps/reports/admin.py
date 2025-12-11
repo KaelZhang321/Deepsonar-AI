@@ -12,19 +12,30 @@ class ReportAdmin(admin.ModelAdmin):
         "id",
         "query_preview",
         "user",
+        "user_id_display",
         "status",
         "created_at",
         "completed_at",
     )
-    list_filter = ("status", "created_at")
+    list_filter = ("status", "created_at", "user")
     search_fields = ("query", "output", "user__username")
     readonly_fields = ("created_at", "completed_at")
     ordering = ("-created_at",)
+    
+    # 可以直接编辑用户关联
+    raw_id_fields = ("user",)
 
     @admin.display(description="Query")
     def query_preview(self, obj: Report) -> str:
         """Display truncated query in list view."""
         return obj.query[:50] + "..." if len(obj.query) > 50 else obj.query
+    
+    @admin.display(description="User ID")
+    def user_id_display(self, obj: Report) -> str:
+        """Display user ID or warning if not set."""
+        if obj.user:
+            return str(obj.user.id)
+        return "⚠️ NULL"
 
 
 @admin.register(ChatSession)

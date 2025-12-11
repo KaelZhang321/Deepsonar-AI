@@ -509,6 +509,12 @@ async def on_message(message: cl.Message) -> None:
             return
 
     # Create a Report record in the database
+    # Debug: Log user association for troubleshooting
+    if django_user:
+        print(f"📝 [Report Creation] User: {django_user.username} (ID: {django_user.id}), Topic: {topic[:30]}...")
+    else:
+        print(f"⚠️ [Report Creation] No user associated! Topic: {topic[:30]}...")
+    
     report = await create_report(topic, django_user)
 
     # Send initial status message
