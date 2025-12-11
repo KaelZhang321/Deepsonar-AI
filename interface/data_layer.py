@@ -90,21 +90,41 @@ class DjangoDataLayer(BaseDataLayer):
             session_id = int(thread_id)
             content = step_dict.get("output", "") or step_dict.get("input", "")
             step_type = step_dict.get("type", "")
+            step_name = step_dict.get("name", "")
             
-            # Determine sender based on step type
-            if step_type == "user_message":
-                sender = "user"
-            else:
-                sender = "ai"
+            # Skip system messages and resume notifications
+            # These should not be saved to the database
+            skip_patterns = [
+                "Previous conversation",
+                "会话已恢复",
+                "欢迎回来",
+                "Continue the conversation",
+            ]
             
             if content:
-                await sync_to_async(ChatMessage.objects.create)(
-                    session_id=session_id,
-                    sender=sender,
-                    content=content[:10000]  # Limit content length
-                )
-        except (ValueError, Exception):
-            pass
+                # Check if this is a system message to skip
+                should_skip = False
+                for pattern in skip_patterns:
+                    if pattern in content:
+                        should_skip = True
+                        print(f"⏭️ [create_step] Skipping system message: {content[:50]}...")
+                        break
+                
+                if not should_skip:
+                    # Determine sender based on step type
+                    if step_type == "user_message":
+                        sender = "user"
+                    else:
+                        sender = "ai"
+                    
+                    await sync_to_async(ChatMessage.objects.create)(
+                        session_id=session_id,
+                        sender=sender,
+                        content=content[:10000]  # Limit content length
+                    )
+                    print(f"💾 [create_step] Saved {sender} message: {content[:50]}...")
+        except (ValueError, Exception) as e:
+            print(f"❌ [create_step] Error: {e}")
         
         return step_dict
     
