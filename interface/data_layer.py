@@ -209,25 +209,36 @@ class DjangoDataLayer(BaseDataLayer):
                 session = ChatSession.objects.select_related('user').get(id=int(thread_id))
                 messages = list(session.messages.order_by('timestamp'))
                 user_identifier = session.user.username if session.user else "Anonymous"
+                user_id = str(session.user.id) if session.user else None
                 
-                # Build steps list
+                # Build steps list with proper format for Chainlit
                 steps = []
                 for msg in messages:
                     step_type = "user_message" if msg.sender == "user" else "assistant_message"
-                    steps.append({
+                    timestamp_iso = msg.timestamp.isoformat()
+                    
+                    step = {
                         "id": str(msg.id),
-                        "name": msg.sender,
+                        "name": msg.sender if msg.sender == "user" else "Assistant",
                         "type": step_type,
                         "threadId": thread_id,
+                        "parentId": None,
+                        "input": msg.content if msg.sender == "user" else "",
                         "output": msg.content,
-                        "createdAt": msg.timestamp.isoformat(),
-                    })
+                        "createdAt": timestamp_iso,
+                        "start": timestamp_iso,
+                        "end": timestamp_iso,
+                    }
+                    steps.append(step)
+                
+                # Debug log
+                print(f"📜 [get_thread] Thread {thread_id} has {len(steps)} steps")
                 
                 return {
                     "id": str(session.id),
                     "name": session.title,
                     "createdAt": session.created_at.isoformat(),
-                    "userId": user_identifier,
+                    "userId": user_id,
                     "userIdentifier": user_identifier,
                     "metadata": {},
                     "steps": steps,

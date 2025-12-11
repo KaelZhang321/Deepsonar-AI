@@ -317,10 +317,10 @@ async def auth_callback(username: str, password: str) -> Optional[cl.User]:
 @cl.on_chat_resume
 async def on_chat_resume(thread: dict):
     """
-    Handler for when a chat session is resumed (page reload/tab switch).
+    Handler for when a chat session is resumed from sidebar history.
     
-    This prevents the welcome message from being shown again when users
-    switch tabs and come back to the page.
+    This restores the chat history and allows users to continue the conversation.
+    The `thread` dict contains 'steps' which are the historical messages.
     """
     # Restore user info
     user_info = cl.user_session.get("user")
@@ -338,9 +338,33 @@ async def on_chat_resume(thread: dict):
     cl.user_session.set("django_user", django_user)
     cl.user_session.set("session_initialized", True)  # Mark as resumed
     
-    # Send a brief resume message instead of full welcome
+    # Restore chat session from thread_id
+    thread_id = thread.get("id")
+    if thread_id:
+        chat_session = await get_chat_session_by_id(int(thread_id))
+        cl.user_session.set("chat_session", chat_session)
+        cl.user_session.set("thread_id", thread_id)
+    
+    # Restore historical messages from thread steps
+    # Chainlit 2.9.3+ automatically displays steps, but we need to ensure they're formatted correctly
+    steps = thread.get("steps", [])
+    if steps:
+        # Log for debugging
+        print(f"📜 [Chat Resume] Restoring {len(steps)} messages for thread {thread_id}")
+        
+        # Note: Chainlit automatically restores messages from steps if data layer is configured correctly
+        # The steps are displayed in the "Previous conversation" section
+        # If you need to manually restore them to the main chat, uncomment below:
+        # for step in steps:
+        #     if step.get("type") == "user_message":
+        #         await cl.Message(content=step.get("output", ""), author="user").send()
+        #     else:
+        #         await cl.Message(content=step.get("output", "")).send()
+    
+    # Send a brief resume message
+    thread_name = thread.get("name", "对话")
     await cl.Message(
-        content=f"💡 **会话已恢复** - 欢迎回来，{username}！您可以继续输入主题进行分析。"
+        content=f"💡 **会话已恢复** - 欢迎回来，{username}！\n\n📜 上次话题：**{thread_name}**\n\n您可以继续输入主题进行分析。"
     ).send()
 
 
