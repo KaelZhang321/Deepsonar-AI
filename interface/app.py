@@ -365,6 +365,29 @@ async def auth_callback(username: str, password: str) -> Optional[cl.User]:
     return None
 
 
+@cl.on_logout
+def on_logout(request, response):
+    """
+    Handle user logout from Chainlit.
+    
+    Clear SSO cookie and redirect to Django login page.
+    """
+    from starlette.responses import RedirectResponse
+    
+    # Clear the SSO cookie
+    cookie_domain = os.getenv('SSO_COOKIE_DOMAIN', '.deepsonar.com.cn')
+    response.delete_cookie('deepsonar_sso_token', domain=cookie_domain)
+    
+    # Get Django login URL
+    django_url = os.getenv('DJANGO_URL', 'http://www.deepsonar.com.cn')
+    login_url = f"{django_url}/login/"
+    
+    print(f"🔐 [SSO] Logout: cleared cookie, redirecting to {login_url}")
+    
+    # Return redirect response to Django login page
+    return RedirectResponse(url=login_url, status_code=302)
+
+
 # =============================================================================
 # Chainlit Event Handlers
 # =============================================================================
