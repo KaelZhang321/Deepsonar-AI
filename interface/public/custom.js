@@ -1,10 +1,28 @@
 /**
  * DeepSonar Custom Chainlit JavaScript
- * Auto-expand live_logs side panel when it appears
+ * - SSO: Redirect to Django login page instead of Chainlit login
+ * - Auto-expand live_logs side panel when it appears
  */
 
 (function() {
     'use strict';
+    
+    // ==========================================================================
+    // SSO: Redirect to Django login page
+    // ==========================================================================
+    const DJANGO_LOGIN_URL = 'http://www.deepsonar.com.cn/login/';
+    
+    // Check if we're on the Chainlit login page
+    if (window.location.pathname === '/login' || window.location.pathname === '/login/') {
+        console.log('[DeepSonar SSO] Detected Chainlit login page, redirecting to Django login...');
+        // Redirect to Django login page
+        window.location.href = DJANGO_LOGIN_URL;
+        return; // Stop executing rest of script
+    }
+    
+    // ==========================================================================
+    // Live Logs Auto-Expand
+    // ==========================================================================
     
     // Configuration
     const LIVE_LOGS_NAME = 'live_logs';
