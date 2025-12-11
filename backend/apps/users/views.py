@@ -21,8 +21,10 @@ def home(request):
 
 
 def login_view(request):
-    """Handle user login."""
+    """Handle user login with SSO support."""
     from django.conf import settings
+    import jwt
+    from datetime import datetime, timedelta
     
     if request.user.is_authenticated:
         # Redirect to Chainlit if already logged in
@@ -37,8 +39,35 @@ def login_view(request):
             if user is not None:
                 login(request, user)
                 messages.success(request, f'Welcome back, {username}!')
-                # Redirect to Chainlit app
-                return redirect(settings.CHAINLIT_URL)
+                
+                # Generate JWT token for SSO
+                jwt_secret = os.getenv('JWT_SECRET', settings.SECRET_KEY)
+                jwt_payload = {
+                    'user_id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'exp': datetime.utcnow() + timedelta(days=15),
+                    'iat': datetime.utcnow(),
+                }
+                token = jwt.encode(jwt_payload, jwt_secret, algorithm='HS256')
+                
+                # Create response with redirect
+                response = redirect(settings.CHAINLIT_URL)
+                
+                # Set JWT cookie for SSO (domain .deepsonar.com.cn for cross-subdomain access)
+                cookie_domain = os.getenv('SSO_COOKIE_DOMAIN', '.deepsonar.com.cn')
+                response.set_cookie(
+                    'deepsonar_sso_token',
+                    token,
+                    max_age=15 * 24 * 60 * 60,  # 15 days
+                    domain=cookie_domain,
+                    httponly=True,
+                    secure=False,  # Set to True if using HTTPS
+                    samesite='Lax',
+                )
+                
+                print(f"🔐 [SSO] Set token cookie for user {username}")
+                return response
         else:
             messages.error(request, 'Invalid username or password.')
     else:
@@ -48,10 +77,11 @@ def login_view(request):
 
 
 def register_view(request):
-    """Handle user registration."""
+    """Handle user registration with SSO support."""
     from django.conf import settings
     from django.utils import timezone
-    from datetime import timedelta
+    from datetime import datetime, timedelta
+    import jwt
     
     if request.user.is_authenticated:
         return redirect(settings.CHAINLIT_URL)
@@ -67,8 +97,35 @@ def register_view(request):
             
             login(request, user)
             messages.success(request, '账号创建成功！您的试用期为 3 天。')
-            # Redirect to Chainlit app
-            return redirect(settings.CHAINLIT_URL)
+            
+            # Generate JWT token for SSO
+            jwt_secret = os.getenv('JWT_SECRET', settings.SECRET_KEY)
+            jwt_payload = {
+                'user_id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'exp': datetime.utcnow() + timedelta(days=15),
+                'iat': datetime.utcnow(),
+            }
+            token = jwt.encode(jwt_payload, jwt_secret, algorithm='HS256')
+            
+            # Create response with redirect
+            response = redirect(settings.CHAINLIT_URL)
+            
+            # Set JWT cookie for SSO
+            cookie_domain = os.getenv('SSO_COOKIE_DOMAIN', '.deepsonar.com.cn')
+            response.set_cookie(
+                'deepsonar_sso_token',
+                token,
+                max_age=15 * 24 * 60 * 60,  # 15 days
+                domain=cookie_domain,
+                httponly=True,
+                secure=False,
+                samesite='Lax',
+            )
+            
+            print(f"🔐 [SSO] Set token cookie for new user {user.username}")
+            return response
     else:
         form = CustomUserCreationForm()
     
@@ -76,10 +133,17 @@ def register_view(request):
 
 
 def logout_view(request):
-    """Handle user logout."""
+    """Handle user logout with SSO support."""
     logout(request)
     messages.info(request, 'You have been logged out.')
-    return redirect('home')
+    
+    # Create response and clear SSO cookie
+    response = redirect('home')
+    cookie_domain = os.getenv('SSO_COOKIE_DOMAIN', '.deepsonar.com.cn')
+    response.delete_cookie('deepsonar_sso_token', domain=cookie_domain)
+    
+    print(f"🔐 [SSO] Cleared token cookie")
+    return response
 
 
 @login_required

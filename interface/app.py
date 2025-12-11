@@ -289,12 +289,67 @@ def get_chat_session_by_id(session_id: int) -> Optional[ChatSession]:
 # Chainlit Authentication
 # =============================================================================
 
+@cl.header_auth_callback
+async def header_auth_callback(headers: dict) -> Optional[cl.User]:
+    """
+    SSO Authentication via JWT cookie.
+    
+    This callback is triggered first and allows automatic login
+    when user has already authenticated via Django.
+    """
+    import jwt
+    
+    # Try to get the SSO cookie from headers
+    cookie_header = headers.get("cookie", "")
+    
+    # Parse cookie to extract deepsonar_sso_token
+    token = None
+    for cookie in cookie_header.split(";"):
+        cookie = cookie.strip()
+        if cookie.startswith("deepsonar_sso_token="):
+            token = cookie.split("=", 1)[1]
+            break
+    
+    if not token:
+        print("🔐 [SSO] No token cookie found, falling back to password auth")
+        return None
+    
+    try:
+        # Verify JWT token
+        jwt_secret = os.getenv('JWT_SECRET', os.getenv('DJANGO_SECRET_KEY', 'fallback-secret'))
+        payload = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+        
+        username = payload.get('username')
+        user_id = payload.get('user_id')
+        email = payload.get('email', '')
+        
+        if username and user_id:
+            print(f"🔐 [SSO] Auto-login successful for user: {username}")
+            return cl.User(
+                identifier=username,
+                metadata={
+                    "user_id": user_id,
+                    "email": email,
+                    "sso": True,
+                }
+            )
+    except jwt.ExpiredSignatureError:
+        print("🔐 [SSO] Token expired, falling back to password auth")
+    except jwt.InvalidTokenError as e:
+        print(f"🔐 [SSO] Invalid token: {e}, falling back to password auth")
+    except Exception as e:
+        print(f"🔐 [SSO] Error: {e}")
+    
+    return None
+
+
 @cl.password_auth_callback
 async def auth_callback(username: str, password: str) -> Optional[cl.User]:
     """
     Authenticate users against Django database.
     
     This callback is triggered when a user attempts to log in via Chainlit.
+    This is a fallback when SSO header auth fails or is not available.
     """
     user = await django_authenticate(username, password)
     

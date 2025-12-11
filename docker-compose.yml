@@ -48,6 +48,9 @@ services:
       - DJANGO_SETTINGS_MODULE=config.settings
       # Chainlit Auth
       - CHAINLIT_AUTH_SECRET=${CHAINLIT_AUTH_SECRET:-your-secret-key-change-me}
+      - CHAINLIT_CUSTOM_AUTH=true
+      # SSO Configuration
+      - JWT_SECRET=${JWT_SECRET:-${DJANGO_SECRET_KEY:-your-jwt-secret}}
       # Site URLs for redirects
       - CHAINLIT_URL=${CHAINLIT_URL:-http://chat.deepsonar.com.cn}
       - DJANGO_URL=${DJANGO_URL:-http://www.deepsonar.com.cn}
@@ -76,6 +79,9 @@ services:
       # Site URLs for redirects and templates
       - CHAINLIT_URL=${CHAINLIT_URL:-http://chat.deepsonar.com.cn}
       - DJANGO_URL=${DJANGO_URL:-http://www.deepsonar.com.cn}
+      # SSO Configuration
+      - JWT_SECRET=${JWT_SECRET:-${DJANGO_SECRET_KEY:-your-jwt-secret}}
+      - SSO_COOKIE_DOMAIN=${SSO_COOKIE_DOMAIN:-.deepsonar.com.cn}
     volumes:
       - sqlite_data:/app/backend/db
       - static_files:/app/backend/staticfiles
