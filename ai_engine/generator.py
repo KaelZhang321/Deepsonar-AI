@@ -19,7 +19,8 @@ async def generate_single_chapter(
     chapter_info: Dict,
     previous_summary: str = "",
     search_count: int = 10,
-    log_callback: Optional[callable] = None
+    log_callback: Optional[callable] = None,
+    report=None
 ) -> Tuple[str, List[Dict]]:
     """
     Generate a single chapter with research data and structured references.
@@ -30,11 +31,13 @@ async def generate_single_chapter(
         previous_summary: Summary of previous chapters for context continuity
         search_count: Number of search results to fetch
         log_callback: Optional async callback for logging progress updates
+        report: Optional Report instance to associate search results with
         
     Returns:
         Tuple of (chapter_content, list_of_references)
     """
     import chainlit as cl
+    from ai_engine.pre_search import save_search_to_db
     
     chapter_title = chapter_info.get('title', '章节')
     chapter_focus = chapter_info.get('focus', '')
@@ -55,6 +58,14 @@ async def generate_single_chapter(
     # Log search results count
     result_count = len(search_data.get('raw_data', [])) if search_data else 0
     await log(f"   📚 找到 {result_count} 条相关资料")
+    
+    # Save search results to database with report association
+    if search_data.get('raw_data') and report:
+        try:
+            await cl.make_async(lambda: save_search_to_db(search_query, search_data, report))()
+            await log(f"   💾 搜索结果已保存并关联到报告")
+        except Exception as e:
+            await log(f"   ⚠️ 搜索结果保存失败: {e}")
     
     research_context = format_research_data(search_query, search_data)
     

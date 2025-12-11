@@ -123,8 +123,15 @@ def format_research_data(topic: str, search_data: dict) -> str:
     return output
 
 
-def save_search_to_db(keyword: str, search_data: dict):
-    """Save search results to database."""
+def save_search_to_db(keyword: str, search_data: dict, report=None):
+    """
+    Save search results to database with optional report association.
+    
+    Args:
+        keyword: The search keyword
+        search_data: Dict containing raw_data, search_results, references
+        report: Optional Report instance to associate with the search result
+    """
     try:
         import sys
         from pathlib import Path
@@ -145,6 +152,7 @@ def save_search_to_db(keyword: str, search_data: dict):
         
         SearchResult.objects.create(
             keyword=keyword,
+            report=report,
             results_count=len(search_data["raw_data"]),
             results_json=search_data["raw_data"],
             formatted_results=formatted,

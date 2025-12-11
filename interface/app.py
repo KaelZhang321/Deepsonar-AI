@@ -762,7 +762,8 @@ async def on_message(message: cl.Message) -> None:
             topic=topic,  # Use original topic, outline generation handles decomposition
             log_stream=log_stream,
             log_msg=log_msg,
-            init_msg=init_msg
+            init_msg=init_msg,
+            report=report
         )
         
         # === FINAL REPORT DISPLAY ===
@@ -839,7 +840,7 @@ async def on_message(message: cl.Message) -> None:
         ).send()
 
 
-async def generate_long_report(topic: str, log_stream, log_msg, init_msg) -> str:
+async def generate_long_report(topic: str, log_stream, log_msg, init_msg, report=None) -> str:
     """
     Generate an ultra-long report using chapter-by-chapter approach.
     
@@ -854,6 +855,7 @@ async def generate_long_report(topic: str, log_stream, log_msg, init_msg) -> str
         log_stream: LogStream instance for UI updates
         log_msg: cl.Message for log streaming
         init_msg: Initial message for UI binding
+        report: Optional Report instance to associate search results with
         
     Returns:
         Complete report as markdown string
@@ -917,7 +919,8 @@ async def generate_long_report(topic: str, log_stream, log_msg, init_msg) -> str
                 chapter_info=chapter_info,
                 previous_summary=previous_context,
                 search_count=8,
-                log_callback=chapter_log_callback
+                log_callback=chapter_log_callback,
+                report=report
             )
             
             # Process references (deduplicate and rewrite IDs)
