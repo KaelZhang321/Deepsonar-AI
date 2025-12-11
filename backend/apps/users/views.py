@@ -106,6 +106,19 @@ def report_detail(request, report_id):
     
     report = get_object_or_404(Report, id=report_id, user=request.user)
     
+    # Calculate user-specific report number (1-based, ordered by created_at desc)
+    user_reports = Report.objects.filter(
+        user=request.user,
+        status=Report.Status.COMPLETED
+    ).order_by('-created_at').values_list('id', flat=True)
+    
+    # Find the position of this report (1 = newest)
+    report_list = list(user_reports)
+    try:
+        report_number = len(report_list) - report_list.index(report.id)
+    except ValueError:
+        report_number = report.id  # Fallback to database ID
+    
     # Render Markdown to HTML
     md = MarkdownIt("commonmark", {"html": True, "typographer": True})
     md.enable("table")  # Enable table support
@@ -116,7 +129,8 @@ def report_detail(request, report_id):
     
     return render(request, 'reports/detail.html', {
         'report': report,
-        'rendered_content': rendered_content
+        'rendered_content': rendered_content,
+        'report_number': report_number,
     })
 
 
